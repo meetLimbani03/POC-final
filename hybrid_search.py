@@ -6,6 +6,12 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models
 import logging
 from typing import List, Dict, Tuple, Optional
+import webbrowser
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from jinja2 import Environment, FileSystemLoader
+from web_search_agent import search_vendors, display_search_results
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -28,6 +34,36 @@ qdrant_client = QdrantClient(
 
 # Collection name for vendors
 COLLECTION_NAME = "vendors_cosine"
+
+# Email configuration
+EMAIL_ADDRESS = os.environ.get('EMAIL_USER')
+EMAIL_PASSWORD = os.environ.get('EMAIL_PASS')
+
+# Jinja2 environment setup
+template_loader = FileSystemLoader('.')
+environment = Environment(loader=template_loader)
+
+def create_email_template(template_path: str, data: Dict) -> str:
+    """Load and render email template with Jinja2."""
+    template = environment.get_template(template_path)
+    return template.render(data)
+
+def send_email(recipient_email: str, subject: str, html_body: str):
+    """Send email using SMTP server."""
+    msg = MIMEMultipart('alternative')
+    msg['From'] = EMAIL_ADDRESS
+    msg['To'] = recipient_email
+    msg['Subject'] = subject
+
+    msg.attach(MIMEText(html_body, 'html'))
+
+    try:
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+            server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+            server.sendmail(EMAIL_ADDRESS, recipient_email, msg.as_string())
+        st.success("Email sent successfully!")
+    except Exception as e:
+        st.error(f"Error sending email: {e}")
 
 def process_keywords(keywords: List[str]) -> List[str]:
     """
@@ -131,6 +167,7 @@ def hybrid_search(
                 'vendor_name': result.payload.get('vendor_name'),
                 'company_name': result.payload.get('company_name'),
                 'company_description': result.payload.get('company_description'),
+                'email': result.payload.get('email', ''),
                 'keywords': result.payload.get('keywords', []),
                 'vector_score': vector_score,
                 'keyword_score': keyword_score,
@@ -149,10 +186,15 @@ def hybrid_search(
 # Streamlit UI
 st.title("Vendor Search")
 
-# Search interface
+# Add a side panel for settings
+with st.sidebar:
+    st.header("Settings")
+    # Add sliders for adjusting weights
+    num_results = st.slider("Number of results", min_value=1, max_value=20, value=5)
+    keyword_weight = st.slider("Keyword importance (0-1)", min_value=0.0, max_value=1.0, value=0.3)
+
+# Input field for search query
 search_query = st.text_input("Enter your search query:")
-num_results = st.slider("Number of results", min_value=1, max_value=20, value=5)
-keyword_weight = st.slider("Keyword importance (0-1)", min_value=0.0, max_value=1.0, value=0.3)
 
 if search_query:
     results = hybrid_search(
@@ -162,15 +204,79 @@ if search_query:
     )
     
     if results:
-        for i, result in enumerate(results, 1):
-            st.write(f"### Result {i}")
-            st.write(f"**Company:** {result['company_name']}")
-            st.write(f"**Description:** {result['company_description']}")
-            st.write(f"**Keywords:** {', '.join(result['keywords'])}")
-            st.write(f"**Matches:** {result['keyword_matches']:.1f} keywords matched")
-            st.write(f"**Scores:** Vector: {result['vector_score']:.3f}, "
-                    f"Keyword: {result['keyword_score']:.3f}, "
-                    f"Combined: {result['combined_score']:.3f}")
-            st.write("---")
+        # Split results based on combined score
+        primary_results = [r for r in results if r['combined_score'] >= 0.4]
+        secondary_results = [r for r in results if r['combined_score'] < 0.4]
+        
+        # Display primary results
+        if primary_results:
+            st.write("### Primary Results")
+            for i, result in enumerate(primary_results, 1):
+                st.write(f"### Result {i}")
+                st.write(f"**Company:** {result['company_name']}")
+                st.write(f"**Description:** {result['company_description']}")
+                st.write(f"**Keywords:** {', '.join(result['keywords'])}")
+                st.write(f"**Matches:** {result['keyword_matches']:.1f} keywords matched")
+                st.write(f"**Scores:** Vector: {result['vector_score']:.3f}, "
+                        f"Keyword: {result['keyword_score']:.3f}, "
+                        f"Combined: {result['combined_score']:.3f}")
+                if result['email']:
+                    st.write(f"**Email:** {result['email']}")
+                    if st.button(f"Send Email to {result['email']}", key=f"email_btn_{i}"):
+                        # Email template data
+                        email_data = {
+                            'company_name': result['company_name'],
+                            'company_description': result['company_description'],
+                            'search_query': search_query # Include the search query
+                        }
+
+                        # Create email template
+                        email_body = create_email_template('email_template.html', email_data)
+
+                        # Send email
+                        send_email(result['email'], f"Quotation Request: {result['company_name']} for {search_query}", email_body)
+                st.write("---")
+        else:
+            location = st.text_input("Enter location for search (optional):", key="location_input")
+            if st.button("Perform Web Search", key="web_search_button"):
+                # Show spinner while searching
+                with st.spinner("Searching for vendors..."):
+                    # Call the web search agent
+                    results = search_vendors(search_query, location if location else None)
+                    # Display the results
+                    display_search_results(results)
+        
+        # Display secondary results under a "Read More" button
+        if secondary_results:
+            with st.expander("Show More Results (Combined Score < 0.4)"):
+                for i, result in enumerate(secondary_results, len(primary_results) + 1):
+                    st.write(f"### Result {i}")
+                    st.write(f"**Company:** {result['company_name']}")
+                    st.write(f"**Description:** {result['company_description']}")
+                    st.write(f"**Keywords:** {', '.join(result['keywords'])}")
+                    st.write(f"**Matches:** {result['keyword_matches']:.1f} keywords matched")
+                    st.write(f"**Scores:** Vector: {result['vector_score']:.3f}, "
+                            f"Keyword: {result['keyword_score']:.3f}, "
+                            f"Combined: {result['combined_score']:.3f}")
+                    if result['email']:
+                        st.write(f"**Email:** {result['email']}")
+                        if st.button(f"Send Email to {result['email']}", key=f"email_btn_{i}"):
+                            # Email template data
+                            email_data = {
+                                'company_name': result['company_name'],
+                                'company_description': result['company_description'],
+                                'keywords': ', '.join(result['keywords']),
+                                'vector_score': f"{result['vector_score']:.3f}",
+                                'keyword_score': f"{result['keyword_score']:.3f}",
+                                'combined_score': f"{result['combined_score']:.3f}",
+                                'search_query': search_query # Include the search query
+                            }
+
+                            # Create email template
+                            email_body = create_email_template('email_template.html', email_data)
+
+                            # Send email
+                            send_email(result['email'], f"Quotation Request: {result['company_name']} for {search_query}", email_body)
+                    st.write("---")
     else:
         st.write("No results found.")

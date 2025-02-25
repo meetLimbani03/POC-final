@@ -2,5 +2,6 @@
 __pycache__/
 *.pyc
 heifinal/
+heifin/
 venv/
 .DS_Store
