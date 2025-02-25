@@ -1,0 +1,7 @@
+sib-api-v3-sdk>=7.6.0
+python-dotenv>=0.19.0
+streamlit>=1.22.0
+langchain-openai>=0.0.5
+qdrant-client>=1.6.0
+langgraph>=0.0.10
+pandas>=2.0.0
