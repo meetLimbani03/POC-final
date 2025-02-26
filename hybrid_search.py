@@ -36,8 +36,8 @@ qdrant_client = QdrantClient(
 COLLECTION_NAME = "vendors_cosine"
 
 # Email configuration
-EMAIL_ADDRESS = st.secrets["email"]["EMAIL_ADDRESS"]
-EMAIL_PASSWORD = st.secrets["email"]["EMAIL_PASSWORD"]
+EMAIL_ADDRESS = st.secrets["email"]["EMAIL_USER"]
+EMAIL_PASSWORD = st.secrets["email"]["EMAIL_PASS"]
 
 # Jinja2 environment setup
 template_loader = FileSystemLoader('.')
