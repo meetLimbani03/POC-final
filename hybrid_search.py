@@ -23,21 +23,21 @@ load_dotenv()
 # Initialize OpenAI embeddings
 embeddings = OpenAIEmbeddings(
     model="text-embedding-3-small",
-    openai_api_key=os.getenv("OPENAI_API_KEY")
+    openai_api_key=st.secrets["openai"]["OPENAI_API_KEY"]
 )
 
 # Initialize Qdrant client
 qdrant_client = QdrantClient(
-    url=os.getenv("QDRANT_URL"),
-    api_key=os.getenv("QDRANT_API_KEY")
+    url=st.secrets["qdrant"]["QDRANT_URL"],
+    api_key=st.secrets["qdrant"]["QDRANT_API_KEY"]
 )
 
 # Collection name for vendors
 COLLECTION_NAME = "vendors_cosine"
 
 # Email configuration
-EMAIL_ADDRESS = os.environ.get('EMAIL_USER')
-EMAIL_PASSWORD = os.environ.get('EMAIL_PASS')
+EMAIL_ADDRESS = st.secrets["email"]["EMAIL_ADDRESS"]
+EMAIL_PASSWORD = st.secrets["email"]["EMAIL_PASSWORD"]
 
 # Jinja2 environment setup
 template_loader = FileSystemLoader('.')
