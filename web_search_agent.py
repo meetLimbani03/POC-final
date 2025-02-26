@@ -22,6 +22,8 @@ load_dotenv()
 # Initialize OpenAI API key
 OPENAI_API_KEY = st.secrets["openai"]["OPENAI_API_KEY"]
 TAVILY_API_KEY = st.secrets["tavily"]["TAVILY_API_KEY"]
+# Set the Tavily API key as an environment variable
+os.environ["TAVILY_API_KEY"] = TAVILY_API_KEY
 
 class WebSearchAgent:
     """Web search agent using LangChain to find vendors for specific products/services."""
