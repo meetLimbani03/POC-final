@@ -37,7 +37,7 @@ class WebSearchAgent:
         print("Initialized language model", st.secrets["tavily"]["TAVILY_API_KEY"])
         # Initialize search tool
         self.search_tool = TavilySearchResults(
-            api_key=TAVILY_API_KEY,
+            tavily_api_key=TAVILY_API_KEY,
             max_results=10,
             k=10
         )
