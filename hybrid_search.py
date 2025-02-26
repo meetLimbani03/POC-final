@@ -243,7 +243,7 @@ if search_query:
             location = st.text_input("Enter location for search (optional):", key="location_input")
             if st.button("Perform Web Search", key="web_search_button"):
                 # Show spinner while searching
-                with st.spinner("Searching for vendors..."):
+                with st.spinner("Searching across the web for the best vendors... This might take a moment. Why not grab a cup of coffee while you wait?"):
                     # Call the web search agent
                     results = search_vendors(search_query, location if location else None)
                     # Display the results
