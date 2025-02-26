@@ -34,7 +34,7 @@ class WebSearchAgent:
             temperature=0,
             openai_api_key=OPENAI_API_KEY
         )
-        
+        print("Initialized language model", st.secrets["tavily"]["TAVILY_API_KEY"])
         # Initialize search tool
         self.search_tool = TavilySearchResults(
             api_key=TAVILY_API_KEY,
