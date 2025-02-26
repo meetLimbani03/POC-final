@@ -192,6 +192,9 @@ with st.sidebar:
     # Add sliders for adjusting weights
     num_results = st.slider("Number of results", min_value=1, max_value=20, value=5)
     keyword_weight = st.slider("Keyword importance (0-1)", min_value=0.0, max_value=1.0, value=0.3)
+    st.warning("Do not change these settings unless you're a developer!")
+    
+
 
 # Input field for search query
 search_query = st.text_input("Enter your search query:")
