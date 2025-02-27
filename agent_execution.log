@@ -1,0 +1,110 @@
+2025-02-27 09:52:32,207 - INFO - HTTP Request: GET https://286d2181-b178-4f20-bb8e-7759f33eaae7.us-east4-0.gcp.cloud.qdrant.io:6333 "HTTP/1.1 200 OK"
+2025-02-27 09:52:40,180 - INFO - HTTP Request: GET https://286d2181-b178-4f20-bb8e-7759f33eaae7.us-east4-0.gcp.cloud.qdrant.io:6333 "HTTP/1.1 200 OK"
+2025-02-27 09:52:42,096 - INFO - HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+2025-02-27 09:52:43,065 - INFO - HTTP Request: POST https://286d2181-b178-4f20-bb8e-7759f33eaae7.us-east4-0.gcp.cloud.qdrant.io:6333/collections/vendors_cosine/points/search "HTTP/1.1 200 OK"
+2025-02-27 09:52:58,085 - INFO - HTTP Request: GET https://286d2181-b178-4f20-bb8e-7759f33eaae7.us-east4-0.gcp.cloud.qdrant.io:6333 "HTTP/1.1 200 OK"
+2025-02-27 09:52:59,398 - INFO - HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+2025-02-27 09:53:00,299 - INFO - HTTP Request: POST https://286d2181-b178-4f20-bb8e-7759f33eaae7.us-east4-0.gcp.cloud.qdrant.io:6333/collections/vendors_cosine/points/search "HTTP/1.1 200 OK"
+2025-02-27 09:53:03,236 - INFO - HTTP Request: GET https://286d2181-b178-4f20-bb8e-7759f33eaae7.us-east4-0.gcp.cloud.qdrant.io:6333 "HTTP/1.1 200 OK"
+2025-02-27 09:53:03,331 - INFO - HTTP Request: GET https://286d2181-b178-4f20-bb8e-7759f33eaae7.us-east4-0.gcp.cloud.qdrant.io:6333 "HTTP/1.1 200 OK"
+2025-02-27 09:53:04,805 - INFO - HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+2025-02-27 09:53:05,825 - INFO - HTTP Request: POST https://286d2181-b178-4f20-bb8e-7759f33eaae7.us-east4-0.gcp.cloud.qdrant.io:6333/collections/vendors_cosine/points/search "HTTP/1.1 200 OK"
+2025-02-27 09:53:05,881 - INFO - Enhanced Query: Find vendors or suppliers who sell apple in ahmedabad. Current time: 2025-02-27 09:53:05. Include email addresses and contact information for each vendor.
+2025-02-27 09:53:05,881 - INFO - Tavily Search Request: {"query": "Find vendors or suppliers who sell apple in ahmedabad. Current time: 2025-02-27 09:53:05. Include email addresses and contact information for each vendor.", "max_results": 10}
+2025-02-27 09:53:05,881 - INFO - Agent Input: {'input': Find vendors or suppliers who sell apple in ahmedabad. Current time: 2025-02-27 09:53:05. Include email addresses and contact information for each vendor.}
+2025-02-27 09:53:07,672 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-02-27 09:53:11,105 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-02-27 09:53:32,324 - INFO - Tavily Search Response: {"input": "Find vendors or suppliers who sell apple in ahmedabad. Current time: 2025-02-27 09:53:05. Include email addresses and contact information for each vendor.", "output": "Here are some vendors and suppliers in Ahmedabad who sell apples:\n\n1. **Gajumal Mulchand Fruits Pvt Ltd**\n   - **Description**: A well-known wholesaler and distributor of fresh fruits, including apples, in Ahmedabad.\n   - **Location**: Ahmedabad, Gujarat, India\n   - **Contact Information**: Not directly available, but can be found on platforms like Justdial.\n   - **Website**: [Justdial Listing](https://www.justdial.com/Ahmedabad/Apple-Fruit-Wholesalers/nct-11673396)\n   - **Email**: Not directly available.\n\n2. **Himachal Fresh Fruit**\n   - **Description**: Distributor of fresh fruits, including apples, sourced from Himachal Pradesh.\n   - **Location**: Ahmedabad, Gujarat, India\n   - **Contact Information**: Not directly available, but can be found on platforms like Justdial.\n   - **Website**: [Justdial Listing](https://www.justdial.com/Ahmedabad/Apple-Fruit-Distributors/nct-10019335)\n   - **Email**: Not directly available.\n\n3. **Brahmani Fruit Center**\n   - **Description**: Supplier of a variety of fresh fruits, including apples.\n   - **Location**: Ahmedabad, Gujarat, India\n   - **Contact Information**: Not directly available, but can be found on platforms like Justdial.\n   - **Website**: [Justdial Listing](https://www.justdial.com/Ahmedabad/Apple-Fruit-Distributors/nct-10019335)\n   - **Email**: Not directly available.\n\n4. **D J Fruits**\n   - **Description**: Offers a range of fresh fruits, including apples, to local markets.\n   - **Location**: Ahmedabad, Gujarat, India\n   - **Contact Information**: Not directly available, but can be found on platforms like Justdial.\n   - **Website**: [Justdial Listing](https://www.justdial.com/Ahmedabad/Apple-Fruit-Distributors/nct-10019335)\n   - **Email**: Not directly available.\n\n5. **Parekh Enterprise**\n   - **Description**: Engaged in the distribution of fresh fruits, including apples.\n   - **Location**: Ahmedabad, Gujarat, India\n   - **Contact Information**: Not directly available, but can be found on platforms like Justdial.\n   - **Website**: [Justdial Listing](https://www.justdial.com/Ahmedabad/Apple-Fruit-Distributors/nct-10019335)\n   - **Email**: Not directly available.\n\n6. **Apple Food Industries**\n   - **Description**: Manufacturer and supplier of dehydrated food products, including onions and garlic, but not directly related to fresh apples.\n   - **Location**: Ahmedabad, Gujarat, India\n   - **Website**: [Apple Food Industries](https://www.applefood.in/)\n   - **Email**: Not directly available.\n\nFor more detailed contact information, you may need to visit the respective websites or contact them through business directories like Justdial or IndiaMART."}
+2025-02-27 09:53:32,325 - INFO - Agent Output: Here are some vendors and suppliers in Ahmedabad who sell apples:
+
+1. **Gajumal Mulchand Fruits Pvt Ltd**
+   - **Description**: A well-known wholesaler and distributor of fresh fruits, including apples, in Ahmedabad.
+   - **Location**: Ahmedabad, Gujarat, India
+   - **Contact Information**: Not directly available, but can be found on platforms like Justdial.
+   - **Website**: [Justdial Listing](https://www.justdial.com/Ahmedabad/Apple-Fruit-Wholesalers/nct-11673396)
+   - **Email**: Not directly available.
+
+2. **Himachal Fresh Fruit**
+   - **Description**: Distributor of fresh fruits, including apples, sourced from Himachal Pradesh.
+   - **Location**: Ahmedabad, Gujarat, India
+   - **Contact Information**: Not directly available, but can be found on platforms like Justdial.
+   - **Website**: [Justdial Listing](https://www.justdial.com/Ahmedabad/Apple-Fruit-Distributors/nct-10019335)
+   - **Email**: Not directly available.
+
+3. **Brahmani Fruit Center**
+   - **Description**: Supplier of a variety of fresh fruits, including apples.
+   - **Location**: Ahmedabad, Gujarat, India
+   - **Contact Information**: Not directly available, but can be found on platforms like Justdial.
+   - **Website**: [Justdial Listing](https://www.justdial.com/Ahmedabad/Apple-Fruit-Distributors/nct-10019335)
+   - **Email**: Not directly available.
+
+4. **D J Fruits**
+   - **Description**: Offers a range of fresh fruits, including apples, to local markets.
+   - **Location**: Ahmedabad, Gujarat, India
+   - **Contact Information**: Not directly available, but can be found on platforms like Justdial.
+   - **Website**: [Justdial Listing](https://www.justdial.com/Ahmedabad/Apple-Fruit-Distributors/nct-10019335)
+   - **Email**: Not directly available.
+
+5. **Parekh Enterprise**
+   - **Description**: Engaged in the distribution of fresh fruits, including apples.
+   - **Location**: Ahmedabad, Gujarat, India
+   - **Contact Information**: Not directly available, but can be found on platforms like Justdial.
+   - **Website**: [Justdial Listing](https://www.justdial.com/Ahmedabad/Apple-Fruit-Distributors/nct-10019335)
+   - **Email**: Not directly available.
+
+6. **Apple Food Industries**
+   - **Description**: Manufacturer and supplier of dehydrated food products, including onions and garlic, but not directly related to fresh apples.
+   - **Location**: Ahmedabad, Gujarat, India
+   - **Website**: [Apple Food Industries](https://www.applefood.in/)
+   - **Email**: Not directly available.
+
+For more detailed contact information, you may need to visit the respective websites or contact them through business directories like Justdial or IndiaMART.
+2025-02-27 09:55:36,712 - INFO - HTTP Request: GET https://286d2181-b178-4f20-bb8e-7759f33eaae7.us-east4-0.gcp.cloud.qdrant.io:6333 "HTTP/1.1 200 OK"
+2025-02-27 09:55:36,910 - INFO - HTTP Request: GET https://286d2181-b178-4f20-bb8e-7759f33eaae7.us-east4-0.gcp.cloud.qdrant.io:6333 "HTTP/1.1 200 OK"
+2025-02-27 09:55:38,260 - INFO - HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+2025-02-27 09:55:39,204 - INFO - HTTP Request: POST https://286d2181-b178-4f20-bb8e-7759f33eaae7.us-east4-0.gcp.cloud.qdrant.io:6333/collections/vendors_cosine/points/search "HTTP/1.1 200 OK"
+2025-02-27 09:55:39,246 - INFO - Enhanced Query: Find vendors or suppliers who sell apple in Amsterdam. Current time: 2025-02-27 09:55:39. Include email addresses and contact information for each vendor.
+2025-02-27 09:55:39,246 - INFO - Tavily Search Request: {"query": "Find vendors or suppliers who sell apple in Amsterdam. Current time: 2025-02-27 09:55:39. Include email addresses and contact information for each vendor.", "max_results": 10}
+2025-02-27 09:55:39,246 - INFO - Agent Input: {'input': Find vendors or suppliers who sell apple in Amsterdam. Current time: 2025-02-27 09:55:39. Include email addresses and contact information for each vendor.}
+2025-02-27 09:55:40,520 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-02-27 09:55:43,566 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-02-27 09:56:00,660 - INFO - Tavily Search Response: {"input": "Find vendors or suppliers who sell apple in Amsterdam. Current time: 2025-02-27 09:55:39. Include email addresses and contact information for each vendor.", "output": "Here are some vendors and suppliers who sell apples in Amsterdam:\n\n1. **Royal Divine Products**\n   - **Description**: A leading supplier and global authority on apples, delivering high-quality products to major locations in the Netherlands, including Amsterdam.\n   - **Website**: [Royal Divine Products](https://www.royaldivineproducts.com/apples-fruits-supplier-in-netherland.php)\n   - **Contact Information**: Not directly available on the website. Please visit their website for more details.\n   - **Location**: Netherlands\n   - **Special Features**: High-quality apple products.\n\n2. **Verwoert Fruit**\n   - **Description**: Supplies apples mainly to wholesalers and fruit traders in the Netherlands, offering fresh, ripe, and tasty apples throughout the year.\n   - **Website**: [Verwoert Fruit](https://www.verwoertfruit.com/fruit/apples)\n   - **Contact Information**: Not directly available on the website. Please visit their website for more details.\n   - **Location**: Netherlands\n   - **Special Features**: Year-round supply of fresh apples.\n\n3. **Apple Retail Netherlands B.V.**\n   - **Description**: Provides company research, competitor information, contact details, and financial data for Apple Retail in Amsterdam.\n   - **Website**: [Apple Retail Netherlands B.V.](https://www.dnb.com/business-directory/company-profiles.apple_retail_netherlands_bv.7b37847e38d5413cc12042cc0be4614b.html)\n   - **Contact Information**: Not directly available on the website. Please visit their website for more details.\n   - **Location**: Amsterdam, Noord-Holland\n   - **Special Features**: Comprehensive company information.\n\n4. **Go4WorldBusiness**\n   - **Description**: Offers bulk buying options for apples from trusted exporters, wholesalers, and traders in the Netherlands.\n   - **Website**: [Go4WorldBusiness](https://www.go4worldbusiness.com/suppliers/netherlands/apple.html)\n   - **Contact Information**: Not directly available on the website. Please visit their website for more details.\n   - **Location**: Netherlands\n   - **Special Features**: Bulk buying options.\n\n5. **Van Kessel Fruit**\n   - **Description**: Offers a variety of originally Dutch apple varieties for trade.\n   - **Website**: [Van Kessel Fruit](https://www.vankesselfruit.nl/vers-fruit?_lang=en)\n   - **Contact Information**: Not directly available on the website. Please visit their website for more details.\n   - **Location**: Netherlands\n   - **Special Features**: Variety of Dutch apple varieties.\n\nFor email addresses and more specific contact information, please visit the respective websites and check their \"Contact Us\" or \"About Us\" pages."}
+2025-02-27 09:56:00,661 - INFO - Agent Output: Here are some vendors and suppliers who sell apples in Amsterdam:
+
+1. **Royal Divine Products**
+   - **Description**: A leading supplier and global authority on apples, delivering high-quality products to major locations in the Netherlands, including Amsterdam.
+   - **Website**: [Royal Divine Products](https://www.royaldivineproducts.com/apples-fruits-supplier-in-netherland.php)
+   - **Contact Information**: Not directly available on the website. Please visit their website for more details.
+   - **Location**: Netherlands
+   - **Special Features**: High-quality apple products.
+
+2. **Verwoert Fruit**
+   - **Description**: Supplies apples mainly to wholesalers and fruit traders in the Netherlands, offering fresh, ripe, and tasty apples throughout the year.
+   - **Website**: [Verwoert Fruit](https://www.verwoertfruit.com/fruit/apples)
+   - **Contact Information**: Not directly available on the website. Please visit their website for more details.
+   - **Location**: Netherlands
+   - **Special Features**: Year-round supply of fresh apples.
+
+3. **Apple Retail Netherlands B.V.**
+   - **Description**: Provides company research, competitor information, contact details, and financial data for Apple Retail in Amsterdam.
+   - **Website**: [Apple Retail Netherlands B.V.](https://www.dnb.com/business-directory/company-profiles.apple_retail_netherlands_bv.7b37847e38d5413cc12042cc0be4614b.html)
+   - **Contact Information**: Not directly available on the website. Please visit their website for more details.
+   - **Location**: Amsterdam, Noord-Holland
+   - **Special Features**: Comprehensive company information.
+
+4. **Go4WorldBusiness**
+   - **Description**: Offers bulk buying options for apples from trusted exporters, wholesalers, and traders in the Netherlands.
+   - **Website**: [Go4WorldBusiness](https://www.go4worldbusiness.com/suppliers/netherlands/apple.html)
+   - **Contact Information**: Not directly available on the website. Please visit their website for more details.
+   - **Location**: Netherlands
+   - **Special Features**: Bulk buying options.
+
+5. **Van Kessel Fruit**
+   - **Description**: Offers a variety of originally Dutch apple varieties for trade.
+   - **Website**: [Van Kessel Fruit](https://www.vankesselfruit.nl/vers-fruit?_lang=en)
+   - **Contact Information**: Not directly available on the website. Please visit their website for more details.
+   - **Location**: Netherlands
+   - **Special Features**: Variety of Dutch apple varieties.
+
+For email addresses and more specific contact information, please visit the respective websites and check their "Contact Us" or "About Us" pages.
+2025-02-27 14:31:12,144 - INFO - HTTP Request: GET https://286d2181-b178-4f20-bb8e-7759f33eaae7.us-east4-0.gcp.cloud.qdrant.io:6333 "HTTP/1.1 200 OK"

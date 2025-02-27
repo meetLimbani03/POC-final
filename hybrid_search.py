@@ -241,11 +241,12 @@ if search_query:
                 st.write("---")
         else:
             location = st.text_input("Enter location for search (optional):", key="location_input")
+            number_of_results = st.text_input("Max Number of vendors to search for", value=5)
             if st.button("Perform Web Search", key="web_search_button"):
                 # Show spinner while searching
                 with st.spinner("Searching for vendors..."):
                     # Call the web search agent
-                    results = search_vendors(search_query, location if location else None)
+                    results = search_vendors(search_query, location if location else None, int(number_of_results))
                     # Display the results
                     display_search_results(results)
         
