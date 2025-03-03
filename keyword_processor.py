@@ -152,11 +152,11 @@ def process_csv_file(csv_path: str) -> tuple[pd.DataFrame, list[str]]:
     return final_state["data"], sorted(final_state["keywords_history"])
 
 if __name__ == "__main__":
-    input_file = "Merged_Data.csv"
+    input_file = "heinecan-sample-data.csv"
     df_with_keywords, all_keywords = process_csv_file(input_file)
     
     # Save the results
-    output_file = "new_Merged_Data_with_keywords.csv"
+    output_file = "new_heinecan-sample-data_with_keywords.csv"
     df_with_keywords.to_csv(output_file, index=False)
     print(f"\nProcessing complete! Results saved to {output_file}")
     print("\nFinal Keywords History:")

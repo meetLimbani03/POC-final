@@ -33,7 +33,7 @@ qdrant_client = QdrantClient(
 )
 
 # Collection name for vendors
-COLLECTION_NAME = "vendors_cosine"
+COLLECTION_NAME = "sample_data_cosine"
 
 # Email configuration
 EMAIL_ADDRESS = os.getenv("EMAIL_USER")
@@ -172,7 +172,8 @@ def hybrid_search(
                 'vector_score': vector_score,
                 'keyword_score': keyword_score,
                 'keyword_matches': match_count,
-                'combined_score': combined_score
+                'combined_score': combined_score,
+                'contact': result.payload.get('contact', '')
             })
         
         # Sort by combined score and limit results
@@ -193,8 +194,6 @@ with st.sidebar:
     num_results = st.slider("Number of results", min_value=1, max_value=20, value=5)
     keyword_weight = st.slider("Keyword importance (0-1)", min_value=0.0, max_value=1.0, value=0.3)
     st.warning("Do not change these settings unless you're a developer!")
-    
-
 
 # Input field for search query
 search_query = st.text_input("Enter your search query:")
@@ -205,6 +204,7 @@ if search_query:
         limit=num_results,
         keyword_boost=keyword_weight
     )
+    print("results",results)
     
     if results:
         # Split results based on combined score
@@ -228,16 +228,77 @@ if search_query:
                     if st.button(f"Send Email to {result['email']}", key=f"email_btn_{i}"):
                         # Email template data
                         email_data = {
-                            'company_name': result['company_name'],
-                            'company_description': result['company_description'],
-                            'search_query': search_query # Include the search query
+                            'vendor_name': result['company_name'],
+                            'item_name': search_query,
+                            'required_quantity': "To be discussed",
+                            'delivery_address': "Our company address",
+                            'delivery_date': "To be discussed",
+                            'your_contact_information': result['email'],
+                            'your_name': "Procurement Manager",
+                            'your_company_name': result['company_name'],
+                            'your_email': result['email'],
+                            'your_contact_number': result['contact']
                         }
 
                         # Create email template
-                        email_body = create_email_template('email_template.html', email_data)
+                        email_body = create_email_template('new_email_temp.html', email_data)
 
                         # Send email
                         send_email(result['email'], f"Quotation Request: {result['company_name']} for {search_query}", email_body)
+                        
+                        # Show vendor response
+                        with st.container(border=True):
+                            html_response = """
+                            <h3>Vendor Response Email</h3>
+                            <p><strong>Subject:</strong> Quotation for Sugar Supply</p>
+                            
+                            <p>Dear Procurement Manager,</p>
+                            
+                            <p>Thank you for your email and for considering SweetHarvest Ltd. for your sugar supply needs. We are pleased to provide the following quotation for your request:</p>
+                            
+                            <p>
+                            <strong>Item Name:</strong> Sugar<br>
+                            <strong>Quantity:</strong> To be discussed<br>
+                            <strong>Unit Price:</strong> $0.75 per kg<br>
+                            <strong>Applicable Taxes:</strong> 5% VAT<br>
+                            <strong>Delivery Charges:</strong> $50 (for delivery within the region)<br>
+                            <strong>Payment Terms:</strong> 30 days from delivery<br>
+                            <strong>Warranty/Guarantee Information:</strong> 1-year shelf life guarantee<br>
+                            <strong>Estimated Delivery Time:</strong> 7-10 business days from order confirmation
+                            </p>
+                            
+                            <p>As the quantity and delivery date are yet to be finalized, kindly let us know once the details are confirmed so we can provide you with an updated quotation, including the total price and delivery schedule.</p>
+                            
+                            <p>Please do not hesitate to reach out if you need further information or have any questions. We look forward to working with you.</p>
+                            
+                            <p>
+                            Best regards,<br>
+                            John Doe<br>
+                            Sales Manager<br>
+                            SweetHarvest Ltd.<br>
+                            <a href="mailto:johndoe@sweetharvest.com">johndoe@sweetharvest.com</a><br>
+                            +1-234-567-8901
+                            </p>
+                            """
+                            st.markdown(html_response, unsafe_allow_html=True)
+                        
+                        # Add separation
+                        st.markdown("---")
+                        
+                        # Show summary
+                        summary = """
+                        - **Vendor:** SweetHarvest Ltd.
+                        - **Product:** Sugar
+                        - **Unit Price:** $0.75/kg
+                        - **Taxes:** 5% VAT
+                        - **Delivery Charge:** $50
+                        - **Payment Terms:** 30 days
+                        - **Guarantee:** 1-year shelf life
+                        - **Delivery Time:** 7-10 business days
+                        - **Note:** Awaiting confirmation of quantity and delivery date
+                        """
+                        st.subheader("Summary of Quotation")
+                        st.markdown(summary)
                 st.write("---")
         else:
             location = st.text_input("Enter location for search (optional):", key="location_input")
@@ -267,20 +328,77 @@ if search_query:
                         if st.button(f"Send Email to {result['email']}", key=f"email_btn_{i}"):
                             # Email template data
                             email_data = {
-                                'company_name': result['company_name'],
-                                'company_description': result['company_description'],
-                                'keywords': ', '.join(result['keywords']),
-                                'vector_score': f"{result['vector_score']:.3f}",
-                                'keyword_score': f"{result['keyword_score']:.3f}",
-                                'combined_score': f"{result['combined_score']:.3f}",
-                                'search_query': search_query # Include the search query
+                                'vendor_name': result['company_name'],
+                                'item_name': search_query,
+                                'required_quantity': "To be discussed",
+                                'delivery_address': "Our company address",
+                                'delivery_date': "To be discussed",
+                                'your_contact_information': result['email'],
+                                'your_name': "Procurement Manager",
+                                'your_company_name': result['company_name'],
+                                'your_email': result['email'],
+                                'your_contact_number': result['contact']
                             }
 
                             # Create email template
-                            email_body = create_email_template('email_template.html', email_data)
+                            email_body = create_email_template('new_email_temp.html', email_data)
 
                             # Send email
                             send_email(result['email'], f"Quotation Request: {result['company_name']} for {search_query}", email_body)
+                            
+                            # Show vendor response
+                            with st.container():
+                                html_response = """
+                                <h3>Vendor Response Email</h3>
+                                <p><strong>Subject:</strong> Quotation for Sugar Supply</p>
+                                
+                                <p>Dear Procurement Manager,</p>
+                                
+                                <p>Thank you for your email and for considering SweetHarvest Ltd. for your sugar supply needs. We are pleased to provide the following quotation for your request:</p>
+                                
+                                <p>
+                                <strong>Item Name:</strong> Sugar<br>
+                                <strong>Quantity:</strong> To be discussed<br>
+                                <strong>Unit Price:</strong> $0.75 per kg<br>
+                                <strong>Applicable Taxes:</strong> 5% VAT<br>
+                                <strong>Delivery Charges:</strong> $50 (for delivery within the region)<br>
+                                <strong>Payment Terms:</strong> 30 days from delivery<br>
+                                <strong>Warranty/Guarantee Information:</strong> 1-year shelf life guarantee<br>
+                                <strong>Estimated Delivery Time:</strong> 7-10 business days from order confirmation
+                                </p>
+                                
+                                <p>As the quantity and delivery date are yet to be finalized, kindly let us know once the details are confirmed so we can provide you with an updated quotation, including the total price and delivery schedule.</p>
+                                
+                                <p>Please do not hesitate to reach out if you need further information or have any questions. We look forward to working with you.</p>
+                                
+                                <p>
+                                Best regards,<br>
+                                John Doe<br>
+                                Sales Manager<br>
+                                SweetHarvest Ltd.<br>
+                                <a href="mailto:johndoe@sweetharvest.com">johndoe@sweetharvest.com</a><br>
+                                +1-234-567-8901
+                                </p>
+                                """
+                                st.markdown(html_response, unsafe_allow_html=True)
+                            
+                            # Add separation
+                            st.markdown("---")
+                            
+                            # Show summary
+                            summary = """
+                            - **Vendor:** SweetHarvest Ltd.
+                            - **Product:** Sugar
+                            - **Unit Price:** $0.75/kg
+                            - **Taxes:** 5% VAT
+                            - **Delivery Charge:** $50
+                            - **Payment Terms:** 30 days
+                            - **Guarantee:** 1-year shelf life
+                            - **Delivery Time:** 7-10 business days
+                            - **Note:** Awaiting confirmation of quantity and delivery date
+                            """
+                            st.subheader("Summary of Quotation")
+                            st.markdown(summary)
                     st.write("---")
     else:
         st.write("No results found.")

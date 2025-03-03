@@ -23,7 +23,7 @@ qdrant_client = QdrantClient(
 )
 
 # Collection name for vendors
-COLLECTION_NAME = "vendors_cosine"
+COLLECTION_NAME = "sample_data_cosine"
 
 def create_collection_if_not_exists():
     """Create a new collection if it doesn't exist"""
@@ -136,7 +136,7 @@ def process_and_upload_data(csv_file='Merged_Data.csv', batch_size=10):
 if __name__ == "__main__":
     try:
         # Process and upload data
-        process_and_upload_data(csv_file='Merged_Data_with_keywords.csv', batch_size=10)
+        process_and_upload_data(csv_file='new_heinecan-sample-data_with_keywords.csv', batch_size=10)
         
         # Verify upload
         collection_info = qdrant_client.get_collection(COLLECTION_NAME)
