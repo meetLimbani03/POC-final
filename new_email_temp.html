@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Request for Quotation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            background: #ffffff;
+            padding: 20px;
+            margin: auto;
+            border-radius: 5px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+        }
+        h2 {
+            color: #0056b3;
+        }
+        p {
+            margin: 10px 0;
+        }
+        .details {
+            background: #f9f9f9;
+            padding: 15px;
+            border-left: 4px solid #0056b3;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            color: #ffffff;
+            background: #0056b3;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        .footer {
+            margin-top: 20px;
+            font-size: 12px;
+            color: #777;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Request for Quotation</h2>
+        <p>Dear {{ vendor_name }},</p>
+        
+        <p>I hope this email finds you well. We are looking to procure the following item(s) and would appreciate it if you could provide us with a quotation at your earliest convenience.</p>
+
+        <div class="details">
+            <p><strong>Item Name:</strong> {{ item_name }}</p>
+            <p><strong>Quantity:</strong> {{ required_quantity }}</p>
+            <p><strong>Delivery Location:</strong> {{ delivery_address }}</p>
+            <p><strong>Preferred Delivery Date:</strong> {{ delivery_date }}</p>
+        </div>
+
+        <p>Please include the following details in your quotation:</p>
+        <ul>
+            <li>Unit price</li>
+            <li>Applicable taxes</li>
+            <li>Delivery charges (if any)</li>
+            <li>Payment terms</li>
+            <li>Warranty/Guarantee information</li>
+            <li>Estimated delivery time</li>
+        </ul>
+
+        <p>If you need any further details, feel free to contact me at {{ your_contact_information }}. Looking forward to your prompt response.</p>
+
+        <p>Best regards,</p>
+        <p><strong>{{ your_name }}</strong><br>
+        {{ your_company_name }} <br>
+        {{ your_email }} <br>
+        {{ your_contact_number }}</p>
+
+        <p class="footer">This is a system-generated email. Please do not reply to this email.</p>
+    </div>
+</body>
+</html>

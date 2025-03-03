@@ -11,10 +11,17 @@ from langchain.tools import Tool
 from langchain_community.tools.tavily_search.tool import TavilySearchResults
 from langchain.prompts import ChatPromptTemplate
 from langchain_core.prompts import MessagesPlaceholder
-from langchain_core.messages import SystemMessage, HumanMessage
 from typing import Dict, List, Optional
 import datetime
 import streamlit as st
+import logging
+
+# Set up logging
+logging.basicConfig(
+    filename='agent_execution.log',
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
 # Load environment variables
 load_dotenv()
@@ -70,6 +77,7 @@ class WebSearchAgent:
         - Contact information if available
         - Location information
         - Any special features or unique selling points
+        - Any ongoing Offers or sales
         
         Specifically, try to find the email address of the vendor and include it in the response.
         Finding the email address is a TOP PRIORITY. Look for "Contact Us" pages, "About Us" pages, or footer sections
@@ -101,7 +109,7 @@ class WebSearchAgent:
             handle_parsing_errors=True
         )
     
-    def search(self, query: str, location: Optional[str] = None, time_info: Optional[str] = None) -> Dict:
+    def search(self, query: str, location: Optional[str] = None, time_info: Optional[str] = None, number_of_results: Optional[int] = None) -> Dict:
         """
         Perform a web search to find vendors based on the query and additional metadata.
         
@@ -109,6 +117,7 @@ class WebSearchAgent:
             query: The search query for the product or service
             location: Optional location information
             time_info: Optional time/date information
+            number_of_results: Optional number of results to return
         
         Returns:
             Dict containing search results and vendor information
@@ -124,10 +133,22 @@ class WebSearchAgent:
             enhanced_query += f" in {location}"
         enhanced_query += f". Current time: {time_info}."
         enhanced_query += f" Include email addresses and contact information for each vendor."
+
+        print("enhanced_query:", enhanced_query)
         
+        # Log the enhanced query
+        logging.info(f"Enhanced Query: {enhanced_query}")
+        
+        # Update the search tool with the number of results if provided
+        if number_of_results:
+            self.search_tool.max_results = number_of_results
+        
+
         # Execute the agent
         try:
+
             result = self.agent_executor.invoke({"input": enhanced_query})
+
             return {
                 "status": "success",
                 "query": query,
@@ -144,20 +165,21 @@ class WebSearchAgent:
                 "error": str(e)
             }
 
-def search_vendors(query: str, location: Optional[str] = None) -> Dict:
+def search_vendors(query: str, location: Optional[str] = None, number_of_results: Optional[int] = None) -> Dict:
     """
     Function to be called from the main Streamlit app to perform vendor search.
     
     Args:
         query: The search query for the product or service
         location: Optional location information
+        number_of_results: Optional number of results to return
     
     Returns:
         Dict containing search results and vendor information
     """
     agent = WebSearchAgent()
     current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    return agent.search(query, location, current_time)
+    return agent.search(query, location, current_time, number_of_results)
 
 def display_search_results(results: Dict):
     """
@@ -192,11 +214,12 @@ if __name__ == "__main__":
     
     query = st.text_input("Enter product or service to search for:")
     location = st.text_input("Enter location (optional):")
+    number_of_results = st.number_input("Enter number of results (optional):", min_value=1, value=10)
     
     if st.button("Search Vendors"):
         if query:
             with st.spinner("Searching for vendors..."):
-                results = search_vendors(query, location if location else None)
+                results = search_vendors(query, location if location else None, int(number_of_results))
                 display_search_results(results)
         else:
             st.warning("Please enter a search query.")
