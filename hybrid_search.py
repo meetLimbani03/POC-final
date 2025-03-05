@@ -595,18 +595,20 @@ if search_query:
                 # Display the table
                 st.table(table_data)
                 
-                # Also provide detailed information in expandable sections
-                st.write("### Detailed Vendor Information")
+                # Also provide detailed information in separate sections
+                st.write("### Web Results Details")
                 for i, vendor in enumerate(web_results, 1):
-                    with st.expander(f"{i}. {vendor['company_name']}"):
-                        st.write(f"**Description:** {vendor['company_description']}")
-                        st.write(f"**Website:** [{vendor.get('website', '')}]({vendor.get('website', '')})")
-                        st.write(f"**Email:** {vendor.get('email', 'N/A')}")
-                        
-                        if 'all_emails' in vendor and len(vendor['all_emails']) > 1:
-                            st.write("**All emails found:**")
-                            for email in vendor['all_emails']:
-                                st.write(f"- {email}")
+                    st.write(f"#### {i}. {vendor['company_name']}")
+                    st.write(f"**Description:** {vendor['company_description']}")
+                    st.write(f"**Website:** [{vendor.get('website', '')}]({vendor.get('website', '')})")
+                    st.write(f"**Email:** {vendor.get('email', 'N/A')}")
+                    
+                    if 'all_emails' in vendor and len(vendor['all_emails']) > 1:
+                        st.write("**All emails found:**")
+                        for email in vendor['all_emails']:
+                            st.write(f"- {email}")
+                    
+                    st.markdown("---")  # Add a separator between vendors
             else:
                 st.error("No vendors found in web search. Try a different search query or location.")
     
@@ -639,14 +641,15 @@ if search_query:
         # Display the table
         st.table(table_data)
         
-        # Also provide detailed information in expandable sections
-        st.write("### Detailed Vendor Information")
+        # Also provide detailed information in separate sections
+        st.write("### Primary Results Details")
         for i, result in enumerate(primary_results, 1):
-            with st.expander(f"{i}. {result['company_name']}"):
-                st.write(f"**Description:** {result['company_description']}")
-                st.write(f"**Website:** [{result.get('website', '')}]({result.get('website', '')})")
-                st.write(f"**Email:** {result.get('email', 'N/A')}")
-                
+            st.write(f"#### {i}. {result['company_name']}")
+            st.write(f"**Description:** {result['company_description']}")
+            st.write(f"**Website:** [{result.get('website', '')}]({result.get('website', '')})")
+            st.write(f"**Email:** {result.get('email', 'N/A')}")
+            
+            if result.get('email', 'N/A') != 'N/A':
                 if st.button(f"Send Email to {result.get('email', 'N/A')}", key=f"email_btn_{i}"):
                     # Email template data
                     email_data = {
@@ -667,59 +670,62 @@ if search_query:
                         subject=f"Inquiry about {product_keyword}",
                         html_body=email_html
                     )
+            st.markdown("---")  # Add a separator between vendors
     
     # Display secondary results if any
     if secondary_results:
-        with st.expander("Show More Results (Combined Score < 0.36)"):
-            # Create a table with vendor information
-            table_data = []
-            for result in secondary_results:
-                # Create a shortened description (first 100 characters)
-                short_description = result['company_description'][:100] + "..." if len(result['company_description']) > 100 else result['company_description']
-                
-                # Create a clickable website link
-                website_link = f"[Visit Website]({result.get('website', '')})" if result.get('website', '') else "N/A"
-                
-                # Add row to table data
-                table_data.append({
-                    "Company": result['company_name'],
-                    "Description": short_description,
-                    "Email": result.get('email', 'N/A'),
-                    "Website": website_link,
-                    "Match Score": result['combined_score']
-                })
+        st.write("### More Results (Combined Score < 0.36)")
+        # Create a table with vendor information
+        table_data = []
+        for result in secondary_results:
+            # Create a shortened description (first 100 characters)
+            short_description = result['company_description'][:100] + "..." if len(result['company_description']) > 100 else result['company_description']
             
-            # Display the table
-            st.table(table_data)
+            # Create a clickable website link
+            website_link = f"[Visit Website]({result.get('website', '')})" if result.get('website', '') else "N/A"
             
-            # Also provide detailed information in expandable sections
-            st.write("### Detailed Vendor Information")
-            for i, result in enumerate(secondary_results, len(primary_results) + 1):
-                with st.expander(f"{i}. {result['company_name']}"):
-                    st.write(f"**Description:** {result['company_description']}")
-                    st.write(f"**Website:** [{result.get('website', '')}]({result.get('website', '')})")
-                    st.write(f"**Email:** {result.get('email', 'N/A')}")
+            # Add row to table data
+            table_data.append({
+                "Company": result['company_name'],
+                "Description": short_description,
+                "Email": result.get('email', 'N/A'),
+                "Website": website_link,
+                "Match Score": result['combined_score']
+            })
+        
+        # Display the table
+        st.table(table_data)
+        
+        # Also provide detailed information in separate sections
+        st.write("### Secondary Results Details")
+        for i, result in enumerate(secondary_results, len(primary_results) + 1):
+            st.write(f"#### {i}. {result['company_name']}")
+            st.write(f"**Description:** {result['company_description']}")
+            st.write(f"**Website:** [{result.get('website', '')}]({result.get('website', '')})")
+            st.write(f"**Email:** {result.get('email', 'N/A')}")
+            
+            if result.get('email', 'N/A') != 'N/A':
+                if st.button(f"Send Email to {result.get('email', 'N/A')}", key=f"email_btn_{i}"):
+                    # Email template data
+                    email_data = {
+                        "vendor_name": result['company_name'],
+                        "product": product_keyword,
+                        "user_name": "Your Name",
+                        "user_company": "Your Company",
+                        "user_phone": "Your Phone",
+                        "user_email": "Your Email"
+                    }
                     
-                    if st.button(f"Send Email to {result.get('email', 'N/A')}", key=f"email_btn_{i}"):
-                        # Email template data
-                        email_data = {
-                            "vendor_name": result['company_name'],
-                            "product": product_keyword,
-                            "user_name": "Your Name",
-                            "user_company": "Your Company",
-                            "user_phone": "Your Phone",
-                            "user_email": "Your Email"
-                        }
-                        
-                        # Create email content from template
-                        email_html = create_email_template("email_template.html", email_data)
-                        
-                        # Send the email
-                        send_email(
-                            recipient_email=result.get('email', 'N/A'),
-                            subject=f"Inquiry about {product_keyword}",
-                            html_body=email_html
-                        )
+                    # Create email content from template
+                    email_html = create_email_template("email_template.html", email_data)
+                    
+                    # Send the email
+                    send_email(
+                        recipient_email=result.get('email', 'N/A'),
+                        subject=f"Inquiry about {product_keyword}",
+                        html_body=email_html
+                    )
+            st.markdown("---")  # Add a separator between vendors
     
     if not results:
         st.write("No results found in database. Searching the web...")
