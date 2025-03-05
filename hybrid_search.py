@@ -605,15 +605,15 @@ if search_query:
                     # Create a truncated description (first 100 characters)
                     short_desc = vendor['company_description'][:100] + "..." if len(vendor['company_description']) > 100 else vendor['company_description']
                     
-                    # Create a clickable website link
-                    website_link = f"[Visit]({vendor['website']})" if vendor['website'] else "N/A"
+                    # Create a direct URL for the website instead of markdown link
+                    website_url = vendor['website'] if vendor['website'] else ""
                     
                     # Add row to table data
                     table_data.append({
                         "Company": vendor['company_name'],
                         "Description(100 chars)": short_desc,
                         "Email": vendor['email'],
-                        "Website": website_link
+                        "Website": website_url
                     })
                 
                 # Use dataframe with column configuration for better width control
@@ -633,7 +633,7 @@ if search_query:
                         "Company": st.column_config.TextColumn("Company", width="medium"),
                         "Description(100 chars)": st.column_config.TextColumn("Description", width="large"),
                         "Email": st.column_config.TextColumn("Email", width="medium"),
-                        "Website": st.column_config.LinkColumn("Website", width="small"),
+                        "Website": st.column_config.LinkColumn("Website", display_text="Visit Website", width="small"),
                     },
                     hide_index=True
                 )
@@ -652,7 +652,13 @@ if search_query:
                 for i, vendor in enumerate(web_results, 1):
                     with st.expander(f"{i}. {vendor['company_name']} - Details"):
                         st.write(f"**Description:** {vendor['company_description']}")
-                        st.write(f"**Website:** [{vendor['website']}]({vendor['website']})")
+                        
+                        # Create a proper clickable link
+                        if vendor['website']:
+                            st.markdown(f"**Website:** <a href='{vendor['website']}' target='_blank'>{vendor['website']}</a>", unsafe_allow_html=True)
+                        else:
+                            st.write("**Website:** Not available")
+                            
                         st.write(f"**Email:** {vendor['email']}")
                         
                         if len(vendor['all_emails']) > 1:
