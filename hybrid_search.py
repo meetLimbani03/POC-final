@@ -499,9 +499,9 @@ def search_with_serpapi(query: str, location: Optional[str] = None, num_results:
 st.set_page_config(page_title="Vendor Search", layout="wide")
 
 # Display Heineken logo
-col1, col2, col3 = st.columns([3, 1, 3])
-with col2:
-    st.image("heineken.png", width=150)
+col1, col2 = st.columns([1, 11])
+with col1:
+    st.image("heineken.png", width=100)
 
 # Add custom CSS for better appearance
 st.markdown("""
