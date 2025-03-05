@@ -297,6 +297,56 @@ def structure_vendor_description(result: dict) -> dict:
             "description": result.get("snippet", "")
         }
 
+def analyze_query(query: str) -> Dict[str, Union[str, int]]:
+    """
+    Use LLM to analyze the user's query and extract the product keyword and number of results.
+    
+    Args:
+        query: The user's natural language query
+        
+    Returns:
+        Dictionary containing 'product' and 'num_results'
+    """
+    try:
+        # Create a prompt for the LLM
+        formatted_prompt = ChatPromptTemplate.from_messages([
+            SystemMessage(content="""
+            You are a helpful assistant that extracts structured information from search queries.
+            Extract the product/item being searched for and the number of results requested.
+            If no specific number is mentioned, default to 5 results.
+            Return your response as a JSON object with two fields:
+            - product: The product or item being searched for
+            - num_results: The number of results requested (integer)
+            """),
+            HumanMessage(content=f"Query: {query}")
+        ])
+        
+        # Get the response from the LLM
+        response = llm.predict_messages(formatted_prompt)
+        
+        # Parse the JSON response
+        try:
+            structured_data = json.loads(response.content)
+            # Ensure we have the required fields
+            if 'product' not in structured_data or 'num_results' not in structured_data:
+                logger.error(f"Missing required fields in LLM response: {response.content}")
+                return {'product': query, 'num_results': 5}
+                
+            # Ensure num_results is an integer
+            if not isinstance(structured_data['num_results'], int):
+                structured_data['num_results'] = int(structured_data['num_results'])
+                
+            # Ensure num_results is within reasonable bounds
+            structured_data['num_results'] = max(1, min(structured_data['num_results'], 20))
+                
+            return structured_data
+        except json.JSONDecodeError:
+            logger.error(f"Failed to parse LLM response as JSON: {response.content}")
+            return {'product': query, 'num_results': 5}
+    except Exception as e:
+        logger.error(f"Error in analyzing query: {str(e)}")
+        return {'product': query, 'num_results': 5}
+
 def search_with_serpapi(query: str, location: Optional[str] = None, num_results: int = 5, progress_callback=None) -> List[Dict]:
     """Search for vendors using SerpAPI and extract relevant information."""
     logger.info(f"Starting search_with_serpapi with query: {query}, location: {location}, num_results: {num_results}")
@@ -411,17 +461,24 @@ st.title("Vendor Search")
 # Add a side panel for settings
 with st.sidebar:
     st.header("Settings")
-    # Add sliders for adjusting weights
-    num_results = st.slider("Number of results", min_value=1, max_value=20, value=5)
+    # Keep only the keyword weight slider
     keyword_weight = st.slider("Keyword importance (0-1)", min_value=0.0, max_value=1.0, value=0.3)
     st.warning("Do not change these settings unless you're a developer!")
 
-# Input field for search query
-search_query = st.text_input("Enter your search query:")
+# Input field for search query with updated placeholder text
+search_query = st.text_input("What are you looking for?", placeholder="Example: Find me 10 vendors who sell organic tea")
 
 if search_query:
+    # Analyze the query
+    query_analysis = analyze_query(search_query)
+    product_keyword = query_analysis['product']
+    num_results = query_analysis['num_results']
+    
+    # Show what was extracted from the query
+    st.info(f"Looking for **{product_keyword}** with up to **{num_results}** results")
+
     # First try the database search
-    results = hybrid_search(search_query, limit=num_results, keyword_boost=keyword_weight)
+    results = hybrid_search(product_keyword, limit=num_results, keyword_boost=keyword_weight)
     
     # Split results based on combined score
     primary_results = [r for r in results if r['combined_score'] >= 0.36]
@@ -436,7 +493,6 @@ if search_query:
         
         # Add location input for web search
         location = st.text_input("Enter location for search (optional):", key="location_input")
-        number_of_results = st.number_input("Max number of vendors to web search for", min_value=1, max_value=15, value=5)
         
         if st.button("Perform Web Search", key="web_search_button"):
             # Show spinner while searching
@@ -455,9 +511,9 @@ if search_query:
                         status_placeholder.text(f"Searching page {current_page+1}... Found {vendors_found} vendors ({vendors_with_email} with emails)")
                 
                 web_results = search_with_serpapi(
-                    query=search_query,
+                    query=product_keyword,
                     location=location,
-                    num_results=int(number_of_results),
+                    num_results=num_results,
                     progress_callback=progress_callback
                 )
                 
@@ -511,7 +567,7 @@ if search_query:
                             # Email template data
                             email_data = {
                                 "vendor_name": result['company_name'],
-                                "product": search_query,
+                                "product": product_keyword,
                                 "user_name": "Your Name",
                                 "user_company": "Your Company",
                                 "user_phone": "Your Phone",
@@ -524,7 +580,7 @@ if search_query:
                             # Send the email
                             send_email(
                                 recipient_email=result['email'],
-                                subject=f"Inquiry about {search_query}",
+                                subject=f"Inquiry about {product_keyword}",
                                 html_body=email_html
                             )
                 
@@ -562,7 +618,7 @@ if search_query:
                     # Email template data
                     email_data = {
                         "vendor_name": result['company_name'],
-                        "product": search_query,
+                        "product": product_keyword,
                         "user_name": "Your Name",
                         "user_company": "Your Company",
                         "user_phone": "Your Phone",
@@ -575,7 +631,7 @@ if search_query:
                     # Send the email
                     send_email(
                         recipient_email=result['email'],
-                        subject=f"Inquiry about {search_query}",
+                        subject=f"Inquiry about {product_keyword}",
                         html_body=email_html
                     )
     
@@ -595,7 +651,7 @@ if search_query:
                         # Email template data
                         email_data = {
                             "vendor_name": result['company_name'],
-                            "product": search_query,
+                            "product": product_keyword,
                             "user_name": "Your Name",
                             "user_company": "Your Company",
                             "user_phone": "Your Phone",
@@ -608,7 +664,7 @@ if search_query:
                         # Send the email
                         send_email(
                             recipient_email=result['email'],
-                            subject=f"Inquiry about {search_query}",
+                            subject=f"Inquiry about {product_keyword}",
                             html_body=email_html
                         )
     
