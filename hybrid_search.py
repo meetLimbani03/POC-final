@@ -326,7 +326,7 @@ def search_with_serpapi(query: str, location: Optional[str] = None, num_results:
             params = {
                 "engine": "google",
                 "q": f'site:.com ("{search_query}" vendors OR suppliers OR sellers) ("contact us" OR email) (inurl:contact OR intitle:"Contact Us")',
-                "api_key": SERPAPI_API_KEY,
+                "api_key": st.secrets["serpapi"]["SERPAPI_API_KEY"],
                 "num": results_per_page,
                 "gl": "us",  # Country to use for the search
                 "hl": "en"   # Language
