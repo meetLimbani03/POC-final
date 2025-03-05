@@ -496,6 +496,33 @@ def search_with_serpapi(query: str, location: Optional[str] = None, num_results:
         return []
 
 # Streamlit UI
+st.set_page_config(page_title="Vendor Search", layout="wide")
+
+# Add custom CSS for better appearance
+st.markdown("""
+<style>
+    .main .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+    h1, h2, h3 {
+        margin-top: 1rem;
+        margin-bottom: 1rem;
+    }
+    .stDataFrame {
+        margin-bottom: 2rem;
+    }
+    .stExpander {
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+    }
+    .stProgress {
+        margin-top: 0.5rem;
+        margin-bottom: 1rem;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 st.title("Vendor Search")
 
 # Add a side panel for settings
@@ -583,15 +610,42 @@ if search_query:
                     
                     # Add row to table data
                     table_data.append({
-                        "No.": i,
                         "Company": vendor['company_name'],
-                        "Description": short_desc,
+                        "Description(100 chars)": short_desc,
                         "Email": vendor['email'],
                         "Website": website_link
                     })
                 
-                # Display the table
-                st.table(table_data)
+                # Use dataframe with column configuration for better width control
+                import pandas as pd
+                df = pd.DataFrame(table_data)
+                
+                # Add index column for numbering
+                df.insert(0, "#", range(1, len(df) + 1))
+                
+                # Configure the display to use the full width
+                st.write("### Vendors Found")
+                st.dataframe(
+                    df,
+                    use_container_width=True,
+                    column_config={
+                        "#": st.column_config.NumberColumn("#", width="small"),
+                        "Company": st.column_config.TextColumn("Company", width="medium"),
+                        "Description(100 chars)": st.column_config.TextColumn("Description", width="large"),
+                        "Email": st.column_config.TextColumn("Email", width="medium"),
+                        "Website": st.column_config.LinkColumn("Website", width="small"),
+                    },
+                    hide_index=True
+                )
+                
+                # Add download button for CSV export
+                csv = df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="Download Results as CSV",
+                    data=csv,
+                    file_name=f"{product_keyword}_vendors.csv",
+                    mime="text/csv",
+                )
                 
                 # Show detailed information in expanders
                 st.write("### Detailed Information")
