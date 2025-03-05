@@ -227,9 +227,12 @@ def extract_emails_from_text(text: str) -> List[str]:
     email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
     return re.findall(email_pattern, text)
 
-def extract_emails_from_url(url: str) -> List[str]:
+def extract_emails_from_url(url: str, status_callback=None) -> List[str]:
     """Visit a URL and extract email addresses from the page."""
     try:
+        if status_callback:
+            status_callback(f"Extracting emails from {url}...")
+            
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
@@ -252,10 +255,15 @@ def extract_emails_from_url(url: str) -> List[str]:
                     if email and '@' in email:
                         emails.append(email)
             
+            if status_callback and emails:
+                status_callback(f"Found {len(emails)} emails on {url}")
+                
             return list(set(emails))  # Remove duplicates
         return []
     except Exception as e:
         logger.error(f"Error extracting emails from URL {url}: {str(e)}")
+        if status_callback:
+            status_callback(f"Error extracting emails from {url}: {str(e)}")
         return []
 
 def structure_vendor_description(result: dict) -> dict:
@@ -309,7 +317,7 @@ def structure_vendor_description(result: dict) -> dict:
             "description": result.get("snippet", "")
         }
 
-def search_with_serpapi(query: str, location: Optional[str] = None, num_results: int = 5) -> List[Dict]:
+def search_with_serpapi(query: str, location: Optional[str] = None, num_results: int = 5, progress_callback=None) -> List[Dict]:
     """Search for vendors using SerpAPI and extract relevant information."""
     logger.info(f"Starting search_with_serpapi with query: {query}, location: {location}, num_results: {num_results}")
     try:
@@ -381,7 +389,7 @@ def search_with_serpapi(query: str, location: Optional[str] = None, num_results:
                 # If no emails found in snippet, try to find them on the website
                 if not emails and website:
                     try:
-                        emails.extend(extract_emails_from_url(website))
+                        emails.extend(extract_emails_from_url(website, status_callback=progress_callback))
                         logger.debug(f"Emails found on website: {emails}")
                     except Exception as e:
                         logger.error(f"Error extracting emails from {website}: {str(e)}")
@@ -404,6 +412,9 @@ def search_with_serpapi(query: str, location: Optional[str] = None, num_results:
                 vendors.append(vendor_entry)
                 new_results_found = True
                 logger.info(f"Added vendor: {structured_info['company_name']}, email: {emails[0] if emails else 'N/A'}")
+                
+                if progress_callback:
+                    progress_callback(current_page=page, vendors_found=len(vendors), vendors_with_email=vendors_with_email)
                 
                 # If we have enough vendors and enough with emails, we can stop
                 if len(vendors) >= num_results * 2 and vendors_with_email >= 5:
@@ -465,11 +476,29 @@ if search_query:
         if st.button("Perform Web Search", key="web_search_button"):
             # Show spinner while searching
             with st.spinner("Searching the web for vendors..."):
+                # Create a progress placeholder
+                progress_placeholder = st.empty()
+                status_placeholder = st.empty()
+                
+                # Create a callback function to update progress
+                def progress_callback(current_page=None, vendors_found=None, vendors_with_email=None, status_message=None):
+                    if status_message:
+                        status_placeholder.text(status_message)
+                    elif current_page is not None and vendors_found is not None and vendors_with_email is not None:
+                        progress = min(vendors_with_email / 5, 1.0)  # Target is 5 vendors with emails
+                        progress_placeholder.progress(progress)
+                        status_placeholder.text(f"Searching page {current_page+1}... Found {vendors_found} vendors ({vendors_with_email} with emails)")
+                
                 web_results = search_with_serpapi(
                     query=search_query,
                     location=location,
-                    num_results=int(number_of_results)
+                    num_results=int(number_of_results),
+                    progress_callback=progress_callback
                 )
+                
+                # Clear the progress indicators after search is complete
+                progress_placeholder.empty()
+                status_placeholder.empty()
             
             # Display web search results
             if web_results:
@@ -479,6 +508,19 @@ if search_query:
                 results_with_email = sum(1 for r in web_results if r['has_email'])
                 
                 st.write(f"Found {len(web_results)} vendors on the web, {results_with_email} with email contacts.")
+                
+                # Add progress bar for vendors with emails
+                email_progress = min(results_with_email / 5, 1.0)  # Target is 5 vendors with emails
+                st.write("**Progress toward target of 5 vendors with emails:**")
+                st.progress(email_progress)
+                
+                # Add color-coded status based on progress
+                if results_with_email >= 5:
+                    st.success(f"✅ Found {results_with_email} vendors with email contacts (Target: 5)")
+                elif results_with_email > 0:
+                    st.warning(f"⚠️ Found {results_with_email} vendors with email contacts (Target: 5)")
+                else:
+                    st.error("❌ No vendors with email contacts found (Target: 5)")
                 
                 # First display results with emails
                 if results_with_email > 0:
