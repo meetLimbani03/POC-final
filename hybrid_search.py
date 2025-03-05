@@ -324,15 +324,15 @@ def analyze_query(query: str) -> Dict[str, Union[str, int]]:
             
             Examples:
             - Query: "Find me 10 vendors who sell tea"
-              Product: "tea"
+              Product: tea
               Number: 10
             
             - Query: "I need 5 suppliers of organic coffee"
-              Product: "organic coffee"
+              Product: organic coffee
               Number: 5
               
             - Query: "Show vendors for handmade soap"
-              Product: "handmade soap"
+              Product: handmade soap
               Number: 5 (default)
             
             If no specific number is mentioned, default to 5 results.
@@ -501,9 +501,6 @@ if search_query:
     
     # Add logging to see what was extracted
     logger.info(f"Extracted product: '{product_keyword}' and num_results: {num_results} from query: '{search_query}'")
-    
-    # Show what was extracted from the query (for debugging)
-    st.info(f"Looking for: **{product_keyword}** (Requested: {num_results} results)")
     
     # First try the database search
     results = hybrid_search(product_keyword, limit=num_results, keyword_boost=keyword_weight)
