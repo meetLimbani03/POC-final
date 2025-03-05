@@ -17,7 +17,7 @@ from bs4 import BeautifulSoup
 import time
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import SystemMessage, HumanMessage
 
 
 # Configure logging to write to a file and avoid recursive logging
@@ -314,37 +314,37 @@ def analyze_query(query: str) -> Dict[str, Union[str, int]]:
     """
     try:
         # Create a prompt for the LLM
-        formatted_prompt = ChatPromptTemplate.from_messages([
-            SystemMessage(content="""
-            You are a helpful assistant that extracts structured information from search queries.
-            
-            Your task is to extract:
-            1. The specific product or item being searched for (just the product name, not the entire query)
-            2. The number of results requested (as an integer)
-            
-            Examples:
-            - Query: "Find me 10 vendors who sell tea"
-              Product: tea
-              Number: 10
-            
-            - Query: "I need 5 suppliers of organic coffee"
-              Product: organic coffee
-              Number: 5
-              
-            - Query: "Show vendors for handmade soap"
-              Product: handmade soap
-              Number: 5 (default)
-            
-            If no specific number is mentioned, default to 5 results.
-            Return your response as a JSON object with two fields:
-            - product: The product or item being searched for (just the product name)
-            - num_results: The number of results requested (integer)
-            """),
-            ("user", f"Query: {query}")
-        ])
+        system_message = SystemMessage(content="""
+        You are a helpful assistant that extracts structured information from search queries.
         
-        # Get the response from the LLM
-        response = llm.predict_messages(formatted_prompt)
+        Your task is to extract:
+        1. The specific product or item being searched for (just the product name, not the entire query)
+        2. The number of results requested (as an integer)
+        
+        Examples:
+        - Query: "Find me 10 vendors who sell tea"
+          Product: tea
+          Number: 10
+        
+        - Query: "I need 5 suppliers of organic coffee"
+          Product: organic coffee
+          Number: 5
+          
+        - Query: "Show vendors for handmade soap"
+          Product: handmade soap
+          Number: 5 (default)
+        
+        If no specific number is mentioned, default to 5 results.
+        Return your response as a JSON object with two fields:
+        - product: The product or item being searched for (just the product name)
+        - num_results: The number of results requested (integer)
+        """)
+        
+        user_message = HumanMessage(content=f"Query: {query}")
+        
+        # Get the response from the LLM directly without using ChatPromptTemplate
+        response = llm.predict_messages([system_message, user_message])
+        
         # Log the raw response for debugging
         logger.info(f"LLM raw response: {response.content}")
         
