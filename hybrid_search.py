@@ -17,6 +17,8 @@ from bs4 import BeautifulSoup
 import time
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
+from langchain_core.messages import SystemMessage
+
 
 # Configure logging to write to a file and avoid recursive logging
 logging.basicConfig(
@@ -280,6 +282,9 @@ def structure_vendor_description(result: dict) -> dict:
 
     try:
         response = llm.predict_messages(formatted_prompt)
+        # Log the raw response for debugging
+        logger.info(f"LLM raw response: {response.content}")
+        
         # Parse the JSON response
         try:
             structured_data = json.loads(response.content)
@@ -312,17 +317,36 @@ def analyze_query(query: str) -> Dict[str, Union[str, int]]:
         formatted_prompt = ChatPromptTemplate.from_messages([
             SystemMessage(content="""
             You are a helpful assistant that extracts structured information from search queries.
-            Extract the product/item being searched for and the number of results requested.
+            
+            Your task is to extract:
+            1. The specific product or item being searched for (just the product name, not the entire query)
+            2. The number of results requested (as an integer)
+            
+            Examples:
+            - Query: "Find me 10 vendors who sell tea"
+              Product: "tea"
+              Number: 10
+            
+            - Query: "I need 5 suppliers of organic coffee"
+              Product: "organic coffee"
+              Number: 5
+              
+            - Query: "Show vendors for handmade soap"
+              Product: "handmade soap"
+              Number: 5 (default)
+            
             If no specific number is mentioned, default to 5 results.
             Return your response as a JSON object with two fields:
-            - product: The product or item being searched for
+            - product: The product or item being searched for (just the product name)
             - num_results: The number of results requested (integer)
             """),
-            HumanMessage(content=f"Query: {query}")
+            ("user", f"Query: {query}")
         ])
         
         # Get the response from the LLM
         response = llm.predict_messages(formatted_prompt)
+        # Log the raw response for debugging
+        logger.info(f"LLM raw response: {response.content}")
         
         # Parse the JSON response
         try:
@@ -351,9 +375,10 @@ def search_with_serpapi(query: str, location: Optional[str] = None, num_results:
     """Search for vendors using SerpAPI and extract relevant information."""
     logger.info(f"Starting search_with_serpapi with query: {query}, location: {location}, num_results: {num_results}")
     try:
-        # Construct the search query
+        # Use the provided query directly - this should be the product keyword extracted by analyze_query
         search_query = query
-                
+        logger.debug(f"Using search query: {search_query} for SerpAPI search")
+        
         vendors = []
         vendors_with_email = 0  # Counter for vendors with email
         page = 0
@@ -474,9 +499,12 @@ if search_query:
     product_keyword = query_analysis['product']
     num_results = query_analysis['num_results']
     
-    # Show what was extracted from the query
-    st.info(f"Looking for **{product_keyword}** with up to **{num_results}** results")
-
+    # Add logging to see what was extracted
+    logger.info(f"Extracted product: '{product_keyword}' and num_results: {num_results} from query: '{search_query}'")
+    
+    # Show what was extracted from the query (for debugging)
+    st.info(f"Looking for: **{product_keyword}** (Requested: {num_results} results)")
+    
     # First try the database search
     results = hybrid_search(product_keyword, limit=num_results, keyword_boost=keyword_weight)
     
@@ -484,8 +512,6 @@ if search_query:
     primary_results = [r for r in results if r['combined_score'] >= 0.36]
     secondary_results = [r for r in results if r['combined_score'] < 0.36]
     
-    if results:
-        st.write(f"Found {len(results)} vendors in our database.")
     
     # Show web search option if no primary results
     if not primary_results:
