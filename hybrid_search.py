@@ -260,31 +260,56 @@ def extract_emails_from_url(url: str) -> List[str]:
         logger.error(f"Error extracting emails from URL {url}: {str(e)}")
         return []
 
-def structure_vendor_description(snippet: str, company_name: str) -> str:
-    """Use GPT-3.5-turbo to structure the vendor description."""
+def structure_vendor_description(result: dict) -> dict:
+    """Use GPT-3.5-turbo to structure the vendor information."""
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a business analyst who structures vendor information.
-        Extract and structure information about what products or services the vendor sells or supplies.
-        Keep the description concise and business-focused."""),
-        ("user", """Company: {company_name}
-        Raw Information: {snippet}
+        ("system", """You are a business analyst who extracts and structures vendor information.
+        Your task is to carefully analyze the provided data and extract:
+        1. The actual company name - look for it in the website URL first (e.g., bestapples.com -> Best Apples), 
+           then in the description, and finally in the title. Ignore generic titles like "Contact Us".
+        2. A concise description of their products/services without mentioning the company name.
         
-        Please provide a structured description strictly focusing on only what this vendor sells or supplies and not any other information.""")
+        Return ONLY a JSON object with these two fields."""),
+        ("user", """Raw Information:
+        Title: {title}
+        Description: {snippet}
+        Website: {website}
+        
+        Return ONLY a JSON object like this:
+        {{"company_name": "Example Corp", "description": "Supplies organic produce and dairy products"}}
+        
+        Rules:
+        - Never use "Contact Us" or similar generic pages as company names
+        - Description should focus on products/services without repeating the company name
+        - Extract company name from website domain if possible (e.g., prairieblushorchards.com -> Prairie Blush Orchards)""")
     ])
 
     formatted_prompt = prompt.format_messages(
-        company_name=company_name,
-        snippet=snippet
+        title=result.get("title", ""),
+        snippet=result.get("snippet", ""),
+        website=result.get("link", "")
     )
     logger.info(f"Formatted prompt: {formatted_prompt}")
 
     try:
         response = llm.predict_messages(formatted_prompt)
         logger.info(f"Response: {response.content}")
-        return response.content
+        # Parse the JSON response
+        try:
+            structured_data = json.loads(response.content)
+            return structured_data
+        except json.JSONDecodeError:
+            logger.error("Failed to parse LLM response as JSON")
+            return {
+                "company_name": result.get("title", "").split(" - ")[0].strip(),
+                "description": result.get("snippet", "")
+            }
     except Exception as e:
         logger.error(f"Error in structuring description: {str(e)}")
-        return snippet  # Fallback to original snippet if LLM fails
+        return {
+            "company_name": result.get("title", "").split(" - ")[0].strip(),
+            "description": result.get("snippet", "")
+        }
 
 def search_with_serpapi(query: str, location: Optional[str] = None, num_results: int = 5) -> List[Dict]:
     """Search for vendors using SerpAPI and extract relevant information."""
@@ -333,23 +358,15 @@ def search_with_serpapi(query: str, location: Optional[str] = None, num_results:
                 website = result.get("link", "")
                 logger.debug(f"Processing result with website: {website}")
                 
-                # Extract company name from title
-                company_name = result.get("title", "").split(" - ")[0].strip()
-                logger.debug(f"Extracted company name: {company_name}")
-                
-                # Get the raw snippet
-                raw_description = result.get("snippet", "")
-                logger.debug(f"Raw description: {raw_description}")
-                
-                # Structure the description using GPT-3.5-turbo
-                structured_description = structure_vendor_description(raw_description, company_name)
-                logger.debug(f"Structured description: {structured_description}")
+                # Structure the information using GPT-3.5-turbo
+                structured_info = structure_vendor_description(result)
+                logger.debug(f"Structured info: {structured_info}")
                 
                 # Initialize email variables
                 emails = []
                 
                 # First, try to find emails in the snippet
-                emails.extend(extract_emails_from_text(raw_description))
+                emails.extend(extract_emails_from_text(result.get("snippet", "")))
                 logger.debug(f"Emails found in snippet: {emails}")
                 
                 # If no emails found in snippet, try to find them on the website
@@ -362,14 +379,14 @@ def search_with_serpapi(query: str, location: Optional[str] = None, num_results:
                 
                 # Include all results, with or without email
                 vendors.append({
-                    "company_name": company_name,
-                    "company_description": structured_description,
+                    "company_name": structured_info["company_name"],
+                    "company_description": structured_info["description"],
                     "website": website,
                     "email": emails[0] if emails else "Contact information not available",
                     "all_emails": emails,
                     "has_email": bool(emails)
                 })
-                logger.info(f"Added vendor: {company_name}, email: {emails[0] if emails else 'N/A'}")
+                logger.info(f"Added vendor: {structured_info['company_name']}, email: {emails[0] if emails else 'N/A'}")
                 
                 if len(vendors) >= num_results:
                     logger.info("Reached the desired number of results")
@@ -449,7 +466,7 @@ if search_query:
                         st.write(f"**Email:** {result['email']}")
                         
                         if len(result['all_emails']) > 1:
-                            with st.expander("All emails found"):
+                            with st.expander("All emails found on this site"):
                                 for email in result['all_emails']:
                                     st.write(f"- {email}")
                         
