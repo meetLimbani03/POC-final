@@ -383,9 +383,14 @@ def search_with_serpapi(query: str, location: Optional[str] = None, num_results:
         vendors_with_email = 0  # Counter for vendors with email
         page = 0
         results_per_page = 10
-        max_pages = 5  # Increase max pages to search through
+        max_pages = 10  # Increase max pages to search through
         
-        while (vendors_with_email < 5 or len(vendors) < num_results) and page < max_pages:
+        # Continue searching until we find the requested number of vendors with email addresses
+        # or until we've searched through the maximum number of pages
+        while vendors_with_email < num_results and page < max_pages:
+            if progress_callback:
+                progress_callback(status_message=f"Searching page {page+1} for vendors with email addresses ({vendors_with_email}/{num_results} found)")
+            
             params = {
                 "engine": "google",
                 "q": f'site:.com ("{search_query}" vendors OR suppliers OR sellers) ("contact us" OR email) (inurl:contact OR intitle:"Contact Us")',
@@ -436,6 +441,8 @@ def search_with_serpapi(query: str, location: Optional[str] = None, num_results:
                 # If no emails found in snippet, try to find them on the website
                 if not emails and website:
                     try:
+                        if progress_callback:
+                            progress_callback(status_message=f"Extracting emails from {website}")
                         emails.extend(extract_emails_from_url(website, status_callback=progress_callback))
                     except Exception as e:
                         logger.error(f"Error extracting emails from {website}: {str(e)}")
@@ -450,19 +457,21 @@ def search_with_serpapi(query: str, location: Optional[str] = None, num_results:
                     "has_email": bool(emails)
                 }
                 
-                # Increment counter if this vendor has email
+                # Only add vendors with email addresses
                 if vendor_entry["has_email"]:
                     vendors_with_email += 1
-                
-                vendors.append(vendor_entry)
-                new_results_found = True
-                
-                if progress_callback:
-                    progress_callback(current_page=page, vendors_found=len(vendors), vendors_with_email=vendors_with_email)
-                
-                # If we have enough vendors and enough with emails, we can stop
-                if len(vendors) >= num_results * 2 and vendors_with_email >= 5:
-                    break
+                    vendors.append(vendor_entry)
+                    new_results_found = True
+                    
+                    if progress_callback:
+                        progress = min(vendors_with_email / num_results, 1.0)
+                        progress_callback(current_page=page, vendors_found=len(vendors), 
+                                         vendors_with_email=vendors_with_email,
+                                         status_message=f"Found {vendors_with_email}/{num_results} vendors with email")
+                    
+                    # If we have enough vendors with emails, we can stop
+                    if vendors_with_email >= num_results:
+                        break
             
             # If no new results were found on this page or we've reached the end of results
             if not new_results_found or len(data["organic_results"]) < results_per_page:
@@ -472,9 +481,15 @@ def search_with_serpapi(query: str, location: Optional[str] = None, num_results:
             logger.info(f"Moving to next page: {page}")
             time.sleep(1)  # Small delay between pages to be nice to the API
         
-        # Sort results to prioritize vendors with emails
-        vendors.sort(key=lambda x: (not x["has_email"], x["company_name"]))
-        return vendors[:num_results]
+        # Return only vendors with email addresses, up to the requested number
+        vendors_with_emails = [v for v in vendors if v["has_email"]]
+        
+        if len(vendors_with_emails) < num_results:
+            logger.warning(f"Could only find {len(vendors_with_emails)} vendors with email addresses out of {num_results} requested")
+            if progress_callback:
+                progress_callback(status_message=f"⚠️ Could only find {len(vendors_with_emails)} vendors with email addresses out of {num_results} requested after searching {page+1} pages")
+        
+        return vendors_with_emails[:num_results]
     
     except Exception as e:
         logger.error(f"Error in SerpAPI search: {str(e)}")
@@ -529,9 +544,9 @@ if search_query:
                     if status_message:
                         status_placeholder.text(status_message)
                     elif current_page is not None and vendors_found is not None and vendors_with_email is not None:
-                        progress = min(vendors_with_email / 5, 1.0)  # Target is 5 vendors with emails
+                        progress = min(vendors_with_email / num_results, 1.0)  # Target is the requested number of results
                         progress_placeholder.progress(progress)
-                        status_placeholder.text(f"Searching page {current_page+1}... Found {vendors_found} vendors ({vendors_with_email} with emails)")
+                        status_placeholder.text(f"Searching page {current_page+1}... Found {vendors_with_email}/{num_results} vendors with emails")
                 
                 web_results = search_with_serpapi(
                     query=product_keyword,
@@ -539,6 +554,9 @@ if search_query:
                     num_results=num_results,
                     progress_callback=progress_callback
                 )
+                
+                # Log the search parameters for debugging
+                logger.debug(f"Web search completed with product_keyword='{product_keyword}', num_results={num_results}")
                 
                 # Clear the progress indicators after search is complete
                 progress_placeholder.empty()
@@ -548,81 +566,25 @@ if search_query:
             if web_results:
                 st.write(f"## Web Search Results")
                 
-                # Count results with emails
-                results_with_email = sum(1 for r in web_results if r['has_email'])
-                
-                st.write(f"Found {len(web_results)} vendors on the web, {results_with_email} with email contacts.")
-                
-                # Add progress bar for vendors with emails
-                email_progress = min(results_with_email / 5, 1.0)  # Target is 5 vendors with emails
-                st.write("**Progress toward vendors with emails:**")
-                st.progress(email_progress)
-                
-                # Add color-coded status based on progress
-                if results_with_email >= 5:
-                    st.success(f"✅ Found {results_with_email} vendors with email contacts")
-                elif results_with_email > 0:
-                    st.warning(f"⚠️ Found {results_with_email} vendors with email contacts")
+                # Display the number of results found
+                if len(web_results) == num_results:
+                    st.success(f"✅ Found all {num_results} vendors with email addresses!")
                 else:
-                    st.error("❌ No vendors with email contacts found")
+                    st.warning(f"⚠️ Found {len(web_results)} vendors with email addresses out of {num_results} requested")
                 
-                # First display results with emails
-                if results_with_email > 0:
-                    st.write("### Vendors with Email Contacts")
-                    
-                    email_results = [r for r in web_results if r['has_email']]
-                    for i, result in enumerate(email_results, 1):
-                        st.write(f"#### Result {i}")
-                        st.write(f"**Company:** {result['company_name']}")
-                        st.write(f"**Description:** {result['company_description']}")
+                # Display all vendors with email addresses
+                for i, vendor in enumerate(web_results, 1):
+                    with st.expander(f"{i}. {vendor['company_name']}"):
+                        st.write(f"**Description:** {vendor['company_description']}")
+                        st.write(f"**Website:** [{vendor['website']}]({vendor['website']})")
+                        st.write(f"**Email:** {vendor['email']}")
                         
-                        if result['website']:
-                            st.write(f"**Website:** [{result['website']}]({result['website']})")
-                        
-                        st.write(f"**Email:** {result['email']}")
-                        
-                        if len(result['all_emails']) > 1:
-                            with st.expander("All emails found on this site"):
-                                for email in result['all_emails']:
-                                    st.write(f"- {email}")
-                        
-                        if st.button(f"Send Email to {result['email']}", key=f"web_email_btn_{i}"):
-                            # Email template data
-                            email_data = {
-                                "vendor_name": result['company_name'],
-                                "product": product_keyword,
-                                "user_name": "Your Name",
-                                "user_company": "Your Company",
-                                "user_phone": "Your Phone",
-                                "user_email": "Your Email"
-                            }
-                            
-                            # Create email content from template
-                            email_html = create_email_template("email_template.html", email_data)
-                            
-                            # Send the email
-                            send_email(
-                                recipient_email=result['email'],
-                                subject=f"Inquiry about {product_keyword}",
-                                html_body=email_html
-                            )
-                
-                # Then display results without emails
-                no_email_results = [r for r in web_results if not r['has_email']]
-                if no_email_results:
-                    st.write("### Vendors without Email Contacts")
-                    
-                    for i, result in enumerate(no_email_results, 1):
-                        st.write(f"#### Result {i}")
-                        st.write(f"**Company:** {result['company_name']}")
-                        st.write(f"**Description:** {result['company_description']}")
-                        
-                        if result['website']:
-                            st.write(f"**Website:** [{result['website']}]({result['website']})")
-                        
-                        st.warning("No email found. Please visit their website for contact information.")
+                        if len(vendor['all_emails']) > 1:
+                            st.write("**All emails found:**")
+                            for email in vendor['all_emails']:
+                                st.write(f"- {email}")
             else:
-                st.error("No vendors found in web search. Please try a different query or location.")
+                st.error("No vendors found in web search. Try a different search query or location.")
     
     # Display primary results if any
     if primary_results:
