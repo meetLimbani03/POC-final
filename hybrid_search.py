@@ -5,7 +5,7 @@ from langchain_openai import OpenAIEmbeddings
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
 import logging
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Union
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
