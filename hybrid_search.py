@@ -498,6 +498,11 @@ def search_with_serpapi(query: str, location: Optional[str] = None, num_results:
 # Streamlit UI
 st.set_page_config(page_title="Vendor Search", layout="wide")
 
+# Display Heineken logo
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
+    st.image("heineken.png", use_column_width=True)
+
 # Add custom CSS for better appearance
 st.markdown("""
 <style>
@@ -660,6 +665,28 @@ if search_query:
                             st.write("**Website:** Not available")
                             
                         st.write(f"**Email:** {vendor['email']}")
+                        
+                        if vendor['email']:
+                            if st.button(f"Send Email to {vendor['email']}", key=f"web_email_btn_{i}"):
+                                # Email template data
+                                email_data = {
+                                    "vendor_name": vendor['company_name'],
+                                    "product": product_keyword,
+                                    "user_name": "Your Name",
+                                    "user_company": "Your Company",
+                                    "user_phone": "Your Phone",
+                                    "user_email": "Your Email"
+                                }
+                                
+                                # Create email content from template
+                                email_html = create_email_template("email_template.html", email_data)
+                                
+                                # Send the email
+                                send_email(
+                                    recipient_email=vendor['email'],
+                                    subject=f"Inquiry about {product_keyword}",
+                                    html_body=email_html
+                                )
                         
                         if len(vendor['all_emails']) > 1:
                             st.write("**All emails found:**")
