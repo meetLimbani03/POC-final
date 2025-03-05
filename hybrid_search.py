@@ -6,15 +6,31 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models
 import logging
 from typing import List, Dict, Tuple, Optional
-import webbrowser
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from jinja2 import Environment, FileSystemLoader
-from web_search_agent import search_vendors, display_search_results
+import json
+import requests
+import re
+from bs4 import BeautifulSoup
+import time
+from langchain.chat_models import ChatOpenAI
+from langchain.prompts import ChatPromptTemplate
 
-# Set up logging
-logging.basicConfig(level=logging.DEBUG)
+# Configure logging to write to a file and avoid recursive logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("serp_agent_execution.log"),
+        logging.StreamHandler()
+    ]
+)
+
+# Ensure the logger does not react to its own log file changes
+logging.getLogger('watchdog.observers.inotify_buffer').setLevel(logging.WARNING)
+
 logger = logging.getLogger(__name__)
 
 # Load environment variables
@@ -32,6 +48,9 @@ qdrant_client = QdrantClient(
     api_key=st.secrets["qdrant"]["QDRANT_API_KEY"]
 
 )
+
+# Initialize the LLM
+llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
 
 # Collection name for vendors
 COLLECTION_NAME = "sample_data_cosine"
@@ -78,6 +97,8 @@ def process_keywords(keywords: List[str]) -> List[str]:
         # Add individual parts if it's a compound word
         parts = keyword.lower().split('-')
         processed.update(parts)
+        logger.info(f"Processed keyword: {keyword.lower()}, parts: {parts}")
+        logger.info(f"Updated processed keywords: {list(processed)}")
     return list(processed)
 
 def calculate_keyword_score(query_keywords: List[str], doc_keywords: List[str]) -> Tuple[float, int]:
@@ -88,6 +109,8 @@ def calculate_keyword_score(query_keywords: List[str], doc_keywords: List[str]) 
     # Process both query and document keywords
     query_terms = process_keywords(query_keywords)
     doc_terms = process_keywords(doc_keywords)
+    logger.info(f"Processed query terms: {query_terms}")
+    logger.info(f"Processed document terms: {doc_terms}")
     
     matches = 0
     partial_matches = 0
@@ -96,15 +119,18 @@ def calculate_keyword_score(query_keywords: List[str], doc_keywords: List[str]) 
         # Check for exact matches
         if query_term in doc_terms:
             matches += 1
+            logger.info(f"Exact match found + 1: {query_term}")
             continue
             
         # Check for partial matches
         for doc_term in doc_terms:
             if query_term in doc_term or doc_term in query_term:
                 partial_matches += 0.5  # Give partial matches half weight
+                logger.info(f"Partial match found + 0.5: {query_term}, {doc_term}")
                 break
     
     total_score = (matches + partial_matches) / len(query_terms) if query_terms else 0
+    logger.info(f"Total score: {total_score}, matches: {matches}, partial matches: {partial_matches}")
     return total_score, matches + partial_matches
 
 def hybrid_search(
@@ -123,12 +149,17 @@ def hybrid_search(
     Returns:
         List of search results with combined scores
     """
+
+    logger.info(f"Starting hybrid search with query: {query}, limit: {limit}, keyword_boost: {keyword_boost}")
+
     try:
         # Generate embedding for the query
         query_vector = embeddings.embed_query(query)
         
         # Split query into keywords
         keywords = [k.lower().strip() for k in query.split()]
+
+        logger.info(f"Split query into keywords: {keywords}")
         
         # Perform vector search with payload filter for keywords
         search_results = qdrant_client.search(
@@ -142,17 +173,21 @@ def hybrid_search(
             with_payload=True,
             with_vectors=False
         )
+        logger.info(f"Vector search results: {search_results}")
         
         # Rerank results using hybrid scoring
         hybrid_results = []
         for result in search_results:
             # Get vector similarity score (normalized to 0-1)
             vector_score = result.score
+            logger.info(f"Vector similarity score: {vector_score}")
             
             # Calculate keyword match score
             if 'keywords' in result.payload:
                 doc_keywords = result.payload['keywords']
+                logger.info(f"Document keywords: {doc_keywords}")
                 keyword_score, match_count = calculate_keyword_score(keywords, doc_keywords)
+                logger.info(f"Keyword match score: {keyword_score}, match count: {match_count}")
             else:
                 keyword_score = 0
                 match_count = 0
@@ -162,6 +197,8 @@ def hybrid_search(
                 (1 - keyword_boost) * vector_score +
                 keyword_boost * keyword_score
             )
+            logger.info(f"calculation: {(1 - keyword_boost) * vector_score + keyword_boost * keyword_score}")
+            logger.info(f"Combined score: {combined_score}")
             
             hybrid_results.append({
                 'vendor_id': result.payload.get('vendor_id'),
@@ -185,6 +222,189 @@ def hybrid_search(
         logger.error(f"Error in hybrid search: {str(e)}")
         return []
 
+def extract_emails_from_text(text: str) -> List[str]:
+    """Extract email addresses from text using regex."""
+    email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+    return re.findall(email_pattern, text)
+
+def extract_emails_from_url(url: str) -> List[str]:
+    """Visit a URL and extract email addresses from the page."""
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        response = requests.get(url, headers=headers, timeout=10)
+        logger.info(f"Response status code: {response.status_code}")
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Extract text from the page
+            text = soup.get_text()
+            logger.info(f"Extracted text: {text}")
+            emails = extract_emails_from_text(text)
+            logger.info(f"Extracted emails: {emails}")
+            
+            # Look for mailto links
+            for link in soup.find_all('a'):
+                href = link.get('href', '')
+                if href.startswith('mailto:'):
+                    email = href[7:].split('?')[0]  # Remove 'mailto:' and any parameters
+                    if email and '@' in email:
+                        emails.append(email)
+            
+            return list(set(emails))  # Remove duplicates
+        return []
+    except Exception as e:
+        logger.error(f"Error extracting emails from URL {url}: {str(e)}")
+        return []
+
+def structure_vendor_description(result: dict) -> dict:
+    """Use GPT-3.5-turbo to structure the vendor information."""
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", """You are a business analyst who extracts and structures vendor information.
+        Your task is to carefully analyze the provided data and extract:
+        1. The actual company name - look for it in the website URL first (e.g., bestapples.com -> Best Apples), 
+           then in the description, and finally in the title. Ignore generic titles like "Contact Us".
+        2. A concise description of their products/services without mentioning the company name.
+        
+        Return ONLY a JSON object with these two fields."""),
+        ("user", """Raw Information:
+        Title: {title}
+        Description: {snippet}
+        Website: {website}
+        
+        Return ONLY a JSON object like this:
+        {{"company_name": "Example Corp", "description": "Supplies organic produce and dairy products"}}
+        
+        Rules:
+        - Never use "Contact Us" or similar generic pages as company names
+        - Description should focus on products/services without repeating the company name
+        - Extract company name from website domain if possible (e.g., prairieblushorchards.com -> Prairie Blush Orchards)""")
+    ])
+
+    formatted_prompt = prompt.format_messages(
+        title=result.get("title", ""),
+        snippet=result.get("snippet", ""),
+        website=result.get("link", "")
+    )
+    logger.info(f"Formatted prompt: {formatted_prompt}")
+
+    try:
+        response = llm.predict_messages(formatted_prompt)
+        logger.info(f"Response: {response.content}")
+        # Parse the JSON response
+        try:
+            structured_data = json.loads(response.content)
+            return structured_data
+        except json.JSONDecodeError:
+            logger.error("Failed to parse LLM response as JSON")
+            return {
+                "company_name": result.get("title", "").split(" - ")[0].strip(),
+                "description": result.get("snippet", "")
+            }
+    except Exception as e:
+        logger.error(f"Error in structuring description: {str(e)}")
+        return {
+            "company_name": result.get("title", "").split(" - ")[0].strip(),
+            "description": result.get("snippet", "")
+        }
+
+def search_with_serpapi(query: str, location: Optional[str] = None, num_results: int = 5) -> List[Dict]:
+    """Search for vendors using SerpAPI and extract relevant information."""
+    logger.info(f"Starting search_with_serpapi with query: {query}, location: {location}, num_results: {num_results}")
+    try:
+        # Construct the search query
+        search_query = query
+                
+        vendors = []
+        page = 0
+        results_per_page = 10
+        
+        while len(vendors) < num_results and page < 3:  # Limit to 3 pages maximum
+            logger.info(f"Fetching page {page} with search query: {search_query}")
+            # Set up the SerpAPI parameters
+            params = {
+                "engine": "google",
+                "q": f'site:.com ("{search_query}" vendors OR suppliers OR sellers) ("contact us" OR email) (inurl:contact OR intitle:"Contact Us")',
+                "api_key": SERPAPI_API_KEY,
+                "num": results_per_page,
+                "gl": "us",  # Country to use for the search
+                "hl": "en"   # Language
+            }
+            
+            # Make the API request
+            response = requests.get("https://serpapi.com/search", params=params)
+            logger.debug(f"SerpAPI response status: {response.status_code}")
+
+            with open('formatted_output.json', 'w') as f:
+                f.truncate(0)
+                json.dump(response.json(), f, indent=2)
+            
+            if response.status_code != 200:
+                logger.error(f"SerpAPI request failed with status code {response.status_code}")
+                break
+            
+            data = response.json()
+            logger.debug(f"SerpAPI response data keys: {list(data.keys())}")
+            
+            if "organic_results" not in data:
+                logger.error("No organic results found in SerpAPI response")
+                break
+            
+            for result in data["organic_results"]:
+                # Get the website URL
+                website = result.get("link", "")
+                logger.debug(f"Processing result with website: {website}")
+                
+                # Structure the information using GPT-3.5-turbo
+                structured_info = structure_vendor_description(result)
+                logger.debug(f"Structured info: {structured_info}")
+                
+                # Initialize email variables
+                emails = []
+                
+                # First, try to find emails in the snippet
+                emails.extend(extract_emails_from_text(result.get("snippet", "")))
+                logger.debug(f"Emails found in snippet: {emails}")
+                
+                # If no emails found in snippet, try to find them on the website
+                if not emails and website:
+                    try:
+                        emails.extend(extract_emails_from_url(website))
+                        logger.debug(f"Emails found on website: {emails}")
+                    except Exception as e:
+                        logger.error(f"Error extracting emails from {website}: {str(e)}")
+                
+                # Include all results, with or without email
+                vendors.append({
+                    "company_name": structured_info["company_name"],
+                    "company_description": structured_info["description"],
+                    "website": website,
+                    "email": emails[0] if emails else "Contact information not available",
+                    "all_emails": emails,
+                    "has_email": bool(emails)
+                })
+                logger.info(f"Added vendor: {structured_info['company_name']}, email: {emails[0] if emails else 'N/A'}")
+                
+                if len(vendors) >= num_results:
+                    logger.info("Reached the desired number of results")
+                    break
+            
+            if len(data["organic_results"]) < results_per_page:  # No more results available
+                logger.info("No more results available from SerpAPI")
+                break
+                
+            page += 1
+            logger.info(f"Moving to next page: {page}")
+            time.sleep(1)  # Small delay between pages to be nice to the API
+        
+        logger.info(f"Returning {len(vendors)} vendors")
+        return vendors[:num_results]
+    
+    except Exception as e:
+        logger.error(f"Error in SerpAPI search: {str(e)}")
+        return []
+
 # Streamlit UI
 st.title("Vendor Search")
 
@@ -200,206 +420,145 @@ with st.sidebar:
 search_query = st.text_input("Enter your search query:")
 
 if search_query:
-    results = hybrid_search(
-        query=search_query,
-        limit=num_results,
-        keyword_boost=keyword_weight
-    )
-    print("results",results)
+    # First try the database search
+    results = hybrid_search(search_query, limit=num_results, keyword_boost=keyword_weight)
+    
+    # Split results based on combined score
+    primary_results = [r for r in results if r['combined_score'] >= 0.36]
+    secondary_results = [r for r in results if r['combined_score'] < 0.36]
     
     if results:
-        # Split results based on combined score
-        primary_results = [r for r in results if r['combined_score'] >= 0.4]
-        secondary_results = [r for r in results if r['combined_score'] < 0.4]
+        st.write(f"Found {len(results)} vendors in our database.")
+    
+    # Show web search option if no primary results
+    if not primary_results:
+        st.write("No high-confidence results found in database. Let's search the web...")
         
-        # Display primary results
-        if primary_results:
-            st.write("### Primary Results")
-            for i, result in enumerate(primary_results, 1):
+        # Add location input for web search
+        location = st.text_input("Enter location for search (optional):", key="location_input")
+        number_of_results = st.number_input("Max number of vendors to web search for", min_value=1, max_value=15, value=5)
+        
+        if st.button("Perform Web Search", key="web_search_button"):
+            # Show spinner while searching
+            with st.spinner("Searching the web for vendors..."):
+                web_results = search_with_serpapi(
+                    query=search_query,
+                    location=location,
+                    num_results=int(number_of_results)
+                )
+            
+            # Display web search results
+            if web_results:
+                st.write(f"## Web Search Results")
+                st.write(f"Found {len(web_results)} vendors on the web.")
+                
+                for i, result in enumerate(web_results, 1):
+                    st.write(f"### Result {i}")
+                    st.write(f"**Company:** {result['company_name']}")
+                    st.write(f"**Description:** {result['company_description']}")
+                    
+                    if result['website']:
+                        st.write(f"**Website:** [{result['website']}]({result['website']})")
+                    
+                    if result['has_email']:
+                        st.write(f"**Email:** {result['email']}")
+                        
+                        if len(result['all_emails']) > 1:
+                            with st.expander("All emails found on this site"):
+                                for email in result['all_emails']:
+                                    st.write(f"- {email}")
+                        
+                        if st.button(f"Send Email to {result['email']}", key=f"web_email_btn_{i}"):
+                            # Email template data
+                            email_data = {
+                                "vendor_name": result['company_name'],
+                                "product": search_query,
+                                "user_name": "Your Name",
+                                "user_company": "Your Company",
+                                "user_phone": "Your Phone",
+                                "user_email": "Your Email"
+                            }
+                            
+                            # Create email content from template
+                            email_html = create_email_template("email_template.html", email_data)
+                            
+                            # Send the email
+                            send_email(
+                                recipient_email=result['email'],
+                                subject=f"Inquiry about {search_query}",
+                                html_body=email_html
+                            )
+                    else:
+                        st.warning("No email found. Please visit their website for contact information.")
+            else:
+                st.error("No vendors found in web search. Please try a different query or location.")
+    
+    # Display primary results if any
+    if primary_results:
+        st.write("### Primary Results")
+        for i, result in enumerate(primary_results, 1):
+            st.write(f"### Result {i}")
+            st.write(f"**Company:** {result['company_name']}")
+            st.write(f"**Description:** {result['company_description']}")
+            st.write(f"**Keywords:** {', '.join(result['keywords'])}")
+            st.write(f"**Match Score:** {result['combined_score']:.2f}")
+            st.write(f"**Vector Score:** {result['vector_score']:.2f}")
+            st.write(f"**Keyword Score:** {result['keyword_score']:.2f}")            
+            if result['email']:
+                st.write(f"**Email:** {result['email']}")
+                if st.button(f"Send Email to {result['email']}", key=f"email_btn_{i}"):
+                    # Email template data
+                    email_data = {
+                        "vendor_name": result['company_name'],
+                        "product": search_query,
+                        "user_name": "Your Name",
+                        "user_company": "Your Company",
+                        "user_phone": "Your Phone",
+                        "user_email": "Your Email"
+                    }
+                    
+                    # Create email content from template
+                    email_html = create_email_template("email_template.html", email_data)
+                    
+                    # Send the email
+                    send_email(
+                        recipient_email=result['email'],
+                        subject=f"Inquiry about {search_query}",
+                        html_body=email_html
+                    )
+    
+    # Display secondary results if any
+    if secondary_results:
+        with st.expander("Show More Results (Combined Score < 0.36)"):
+            for i, result in enumerate(secondary_results, len(primary_results) + 1):
                 st.write(f"### Result {i}")
                 st.write(f"**Company:** {result['company_name']}")
                 st.write(f"**Description:** {result['company_description']}")
                 st.write(f"**Keywords:** {', '.join(result['keywords'])}")
-                st.write(f"**Matches:** {result['keyword_matches']:.1f} keywords matched")
-                st.write(f"**Scores:** Vector: {result['vector_score']:.3f}, "
-                        f"Keyword: {result['keyword_score']:.3f}, "
-                        f"Combined: {result['combined_score']:.3f}")
+                st.write(f"**Match Score:** {result['combined_score']:.2f}")
+                
                 if result['email']:
                     st.write(f"**Email:** {result['email']}")
                     if st.button(f"Send Email to {result['email']}", key=f"email_btn_{i}"):
                         # Email template data
                         email_data = {
-                            'vendor_name': result['company_name'],
-                            'item_name': search_query,
-                            'required_quantity': "To be discussed",
-                            'delivery_address': "Our company address",
-                            'delivery_date': "To be discussed",
-                            'your_contact_information': result['email'],
-                            'your_name': "Procurement Manager",
-                            'your_company_name': result['company_name'],
-                            'your_email': result['email'],
-                            'your_contact_number': result['contact']
+                            "vendor_name": result['company_name'],
+                            "product": search_query,
+                            "user_name": "Your Name",
+                            "user_company": "Your Company",
+                            "user_phone": "Your Phone",
+                            "user_email": "Your Email"
                         }
-
-                        # Create email template
-                        email_body = create_email_template('new_email_temp.html', email_data)
-
-                        # Send email
-                        send_email(result['email'], f"Quotation Request: {result['company_name']} for {search_query}", email_body)
                         
-                        # Show vendor response
-                        with st.container(border=True):
-                            html_response = """
-                            <h3>Vendor Response Email</h3>
-                            <p><strong>Subject:</strong> Quotation for Sugar Supply</p>
-                            
-                            <p>Dear Procurement Manager,</p>
-                            
-                            <p>Thank you for your email and for considering SweetHarvest Ltd. for your sugar supply needs. We are pleased to provide the following quotation for your request:</p>
-                            
-                            <p>
-                            <strong>Item Name:</strong> Sugar<br>
-                            <strong>Quantity:</strong> To be discussed<br>
-                            <strong>Unit Price:</strong> $0.75 per kg<br>
-                            <strong>Applicable Taxes:</strong> 5% VAT<br>
-                            <strong>Delivery Charges:</strong> $50 (for delivery within the region)<br>
-                            <strong>Payment Terms:</strong> 30 days from delivery<br>
-                            <strong>Warranty/Guarantee Information:</strong> 1-year shelf life guarantee<br>
-                            <strong>Estimated Delivery Time:</strong> 7-10 business days from order confirmation
-                            </p>
-                            
-                            <p>As the quantity and delivery date are yet to be finalized, kindly let us know once the details are confirmed so we can provide you with an updated quotation, including the total price and delivery schedule.</p>
-                            
-                            <p>Please do not hesitate to reach out if you need further information or have any questions. We look forward to working with you.</p>
-                            
-                            <p>
-                            Best regards,<br>
-                            John Doe<br>
-                            Sales Manager<br>
-                            SweetHarvest Ltd.<br>
-                            <a href="mailto:johndoe@sweetharvest.com">johndoe@sweetharvest.com</a><br>
-                            +1-234-567-8901
-                            </p>
-                            """
-                            st.markdown(html_response, unsafe_allow_html=True)
+                        # Create email content from template
+                        email_html = create_email_template("email_template.html", email_data)
                         
-                        # Add separation
-                        st.markdown("---")
-                        
-                        # Show summary
-                        summary = """
-                        - **Vendor:** SweetHarvest Ltd.
-                        - **Product:** Sugar
-                        - **Unit Price:** $0.75/kg
-                        - **Taxes:** 5% VAT
-                        - **Delivery Charge:** $50
-                        - **Payment Terms:** 30 days
-                        - **Guarantee:** 1-year shelf life
-                        - **Delivery Time:** 7-10 business days
-                        - **Note:** Awaiting confirmation of quantity and delivery date
-                        """
-                        st.subheader("Summary of Quotation")
-                        st.markdown(summary)
-                st.write("---")
-        else:
-            location = st.text_input("Enter location for search (optional):", key="location_input")
-            number_of_results = st.text_input("Max Number of vendors to search for", value=5)
-            if st.button("Perform Web Search", key="web_search_button"):
-                # Show spinner while searching
-                with st.spinner("Searching across the web for the best vendors... This might take a moment. Why not grab a cup of coffee while you wait?"):
-                    # Call the web search agent
-                    results = search_vendors(search_query, location if location else None, int(number_of_results))
-                    # Display the results
-                    display_search_results(results)
-        
-        # Display secondary results under a "Read More" button
-        if secondary_results:
-            with st.expander("Show More Results (Combined Score < 0.4)"):
-                for i, result in enumerate(secondary_results, len(primary_results) + 1):
-                    st.write(f"### Result {i}")
-                    st.write(f"**Company:** {result['company_name']}")
-                    st.write(f"**Description:** {result['company_description']}")
-                    st.write(f"**Keywords:** {', '.join(result['keywords'])}")
-                    st.write(f"**Matches:** {result['keyword_matches']:.1f} keywords matched")
-                    st.write(f"**Scores:** Vector: {result['vector_score']:.3f}, "
-                            f"Keyword: {result['keyword_score']:.3f}, "
-                            f"Combined: {result['combined_score']:.3f}")
-                    if result['email']:
-                        st.write(f"**Email:** {result['email']}")
-                        if st.button(f"Send Email to {result['email']}", key=f"email_btn_{i}"):
-                            # Email template data
-                            email_data = {
-                                'vendor_name': result['company_name'],
-                                'item_name': search_query,
-                                'required_quantity': "To be discussed",
-                                'delivery_address': "Our company address",
-                                'delivery_date': "To be discussed",
-                                'your_contact_information': result['email'],
-                                'your_name': "Procurement Manager",
-                                'your_company_name': result['company_name'],
-                                'your_email': result['email'],
-                                'your_contact_number': result['contact']
-                            }
-
-                            # Create email template
-                            email_body = create_email_template('new_email_temp.html', email_data)
-
-                            # Send email
-                            send_email(result['email'], f"Quotation Request: {result['company_name']} for {search_query}", email_body)
-                            
-                            # Show vendor response
-                            with st.container():
-                                html_response = """
-                                <h3>Vendor Response Email</h3>
-                                <p><strong>Subject:</strong> Quotation for Sugar Supply</p>
-                                
-                                <p>Dear Procurement Manager,</p>
-                                
-                                <p>Thank you for your email and for considering SweetHarvest Ltd. for your sugar supply needs. We are pleased to provide the following quotation for your request:</p>
-                                
-                                <p>
-                                <strong>Item Name:</strong> Sugar<br>
-                                <strong>Quantity:</strong> To be discussed<br>
-                                <strong>Unit Price:</strong> $0.75 per kg<br>
-                                <strong>Applicable Taxes:</strong> 5% VAT<br>
-                                <strong>Delivery Charges:</strong> $50 (for delivery within the region)<br>
-                                <strong>Payment Terms:</strong> 30 days from delivery<br>
-                                <strong>Warranty/Guarantee Information:</strong> 1-year shelf life guarantee<br>
-                                <strong>Estimated Delivery Time:</strong> 7-10 business days from order confirmation
-                                </p>
-                                
-                                <p>As the quantity and delivery date are yet to be finalized, kindly let us know once the details are confirmed so we can provide you with an updated quotation, including the total price and delivery schedule.</p>
-                                
-                                <p>Please do not hesitate to reach out if you need further information or have any questions. We look forward to working with you.</p>
-                                
-                                <p>
-                                Best regards,<br>
-                                John Doe<br>
-                                Sales Manager<br>
-                                SweetHarvest Ltd.<br>
-                                <a href="mailto:johndoe@sweetharvest.com">johndoe@sweetharvest.com</a><br>
-                                +1-234-567-8901
-                                </p>
-                                """
-                                st.markdown(html_response, unsafe_allow_html=True)
-                            
-                            # Add separation
-                            st.markdown("---")
-                            
-                            # Show summary
-                            summary = """
-                            - **Vendor:** SweetHarvest Ltd.
-                            - **Product:** Sugar
-                            - **Unit Price:** $0.75/kg
-                            - **Taxes:** 5% VAT
-                            - **Delivery Charge:** $50
-                            - **Payment Terms:** 30 days
-                            - **Guarantee:** 1-year shelf life
-                            - **Delivery Time:** 7-10 business days
-                            - **Note:** Awaiting confirmation of quantity and delivery date
-                            """
-                            st.subheader("Summary of Quotation")
-                            st.markdown(summary)
-                    st.write("---")
-    else:
-        st.write("No results found.")
+                        # Send the email
+                        send_email(
+                            recipient_email=result['email'],
+                            subject=f"Inquiry about {search_query}",
+                            html_body=email_html
+                        )
+    
+    if not results:
+        st.write("No results found in database. Searching the web...")
