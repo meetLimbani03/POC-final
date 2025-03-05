@@ -317,10 +317,12 @@ def search_with_serpapi(query: str, location: Optional[str] = None, num_results:
         search_query = query
                 
         vendors = []
+        vendors_with_email = 0  # Counter for vendors with email
         page = 0
         results_per_page = 10
+        max_pages = 5  # Increase max pages to search through
         
-        while len(vendors) < num_results and page < 3:  # Limit to 3 pages maximum
+        while (vendors_with_email < 5 or len(vendors) < num_results) and page < max_pages:
             logger.info(f"Fetching page {page} with search query: {search_query}")
             # Set up the SerpAPI parameters
             params = {
@@ -329,7 +331,8 @@ def search_with_serpapi(query: str, location: Optional[str] = None, num_results:
                 "api_key": st.secrets["serpapi"]["SERPAPI_API_KEY"],
                 "num": results_per_page,
                 "gl": "us",  # Country to use for the search
-                "hl": "en"   # Language
+                "hl": "en",   # Language
+                "start": page * results_per_page  # Pagination
             }
             
             # Make the API request
@@ -351,10 +354,18 @@ def search_with_serpapi(query: str, location: Optional[str] = None, num_results:
                 logger.error("No organic results found in SerpAPI response")
                 break
             
+            # Flag to check if we found any new results in this page
+            new_results_found = False
+            
             for result in data["organic_results"]:
                 # Get the website URL
                 website = result.get("link", "")
                 logger.debug(f"Processing result with website: {website}")
+                
+                # Check if we already have this website in our results
+                if any(vendor["website"] == website for vendor in vendors):
+                    logger.debug(f"Skipping duplicate website: {website}")
+                    continue
                 
                 # Structure the information using GPT-3.5-turbo
                 structured_info = structure_vendor_description(result)
@@ -375,30 +386,43 @@ def search_with_serpapi(query: str, location: Optional[str] = None, num_results:
                     except Exception as e:
                         logger.error(f"Error extracting emails from {website}: {str(e)}")
                 
-                # Include all results, with or without email
-                vendors.append({
+                # Create vendor entry
+                vendor_entry = {
                     "company_name": structured_info["company_name"],
                     "company_description": structured_info["description"],
                     "website": website,
                     "email": emails[0] if emails else "Contact information not available",
                     "all_emails": emails,
                     "has_email": bool(emails)
-                })
+                }
+                
+                # Increment counter if this vendor has email
+                if vendor_entry["has_email"]:
+                    vendors_with_email += 1
+                    logger.info(f"Found vendor with email: {structured_info['company_name']}, email: {emails[0]}")
+                
+                vendors.append(vendor_entry)
+                new_results_found = True
                 logger.info(f"Added vendor: {structured_info['company_name']}, email: {emails[0] if emails else 'N/A'}")
                 
-                if len(vendors) >= num_results:
-                    logger.info("Reached the desired number of results")
+                # If we have enough vendors and enough with emails, we can stop
+                if len(vendors) >= num_results * 2 and vendors_with_email >= 5:
+                    logger.info(f"Reached the desired number of results ({len(vendors)}) and vendors with email ({vendors_with_email})")
                     break
             
-            if len(data["organic_results"]) < results_per_page:  # No more results available
-                logger.info("No more results available from SerpAPI")
+            # If no new results were found on this page or we've reached the end of results
+            if not new_results_found or len(data["organic_results"]) < results_per_page:
+                logger.info("No more results available from SerpAPI or no new results found")
                 break
                 
             page += 1
             logger.info(f"Moving to next page: {page}")
             time.sleep(1)  # Small delay between pages to be nice to the API
         
-        logger.info(f"Returning {len(vendors)} vendors")
+        # Sort results to prioritize vendors with emails
+        vendors.sort(key=lambda x: (not x["has_email"], x["company_name"]))
+        
+        logger.info(f"Returning {len(vendors[:num_results])} vendors, {sum(1 for v in vendors[:num_results] if v['has_email'])} with emails")
         return vendors[:num_results]
     
     except Exception as e:
@@ -450,17 +474,25 @@ if search_query:
             # Display web search results
             if web_results:
                 st.write(f"## Web Search Results")
-                st.write(f"Found {len(web_results)} vendors on the web.")
                 
-                for i, result in enumerate(web_results, 1):
-                    st.write(f"### Result {i}")
-                    st.write(f"**Company:** {result['company_name']}")
-                    st.write(f"**Description:** {result['company_description']}")
+                # Count results with emails
+                results_with_email = sum(1 for r in web_results if r['has_email'])
+                
+                st.write(f"Found {len(web_results)} vendors on the web, {results_with_email} with email contacts.")
+                
+                # First display results with emails
+                if results_with_email > 0:
+                    st.write("### Vendors with Email Contacts")
                     
-                    if result['website']:
-                        st.write(f"**Website:** [{result['website']}]({result['website']})")
-                    
-                    if result['has_email']:
+                    email_results = [r for r in web_results if r['has_email']]
+                    for i, result in enumerate(email_results, 1):
+                        st.write(f"#### Result {i}")
+                        st.write(f"**Company:** {result['company_name']}")
+                        st.write(f"**Description:** {result['company_description']}")
+                        
+                        if result['website']:
+                            st.write(f"**Website:** [{result['website']}]({result['website']})")
+                        
                         st.write(f"**Email:** {result['email']}")
                         
                         if len(result['all_emails']) > 1:
@@ -488,7 +520,20 @@ if search_query:
                                 subject=f"Inquiry about {search_query}",
                                 html_body=email_html
                             )
-                    else:
+                
+                # Then display results without emails
+                no_email_results = [r for r in web_results if not r['has_email']]
+                if no_email_results:
+                    st.write("### Vendors without Email Contacts")
+                    
+                    for i, result in enumerate(no_email_results, 1):
+                        st.write(f"#### Result {i}")
+                        st.write(f"**Company:** {result['company_name']}")
+                        st.write(f"**Description:** {result['company_description']}")
+                        
+                        if result['website']:
+                            st.write(f"**Website:** [{result['website']}]({result['website']})")
+                        
                         st.warning("No email found. Please visit their website for contact information.")
             else:
                 st.error("No vendors found in web search. Please try a different query or location.")
