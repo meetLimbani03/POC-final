@@ -99,6 +99,8 @@ def process_keywords(keywords: List[str]) -> List[str]:
         # Add individual parts if it's a compound word
         parts = keyword.lower().split('-')
         processed.update(parts)
+        logger.info(f"Processed keyword: {keyword.lower()}, parts: {parts}")
+        logger.info(f"Updated processed keywords: {list(processed)}")
     return list(processed)
 
 def calculate_keyword_score(query_keywords: List[str], doc_keywords: List[str]) -> Tuple[float, int]:
@@ -109,6 +111,8 @@ def calculate_keyword_score(query_keywords: List[str], doc_keywords: List[str]) 
     # Process both query and document keywords
     query_terms = process_keywords(query_keywords)
     doc_terms = process_keywords(doc_keywords)
+    logger.info(f"Processed query terms: {query_terms}")
+    logger.info(f"Processed document terms: {doc_terms}")
     
     matches = 0
     partial_matches = 0
@@ -117,15 +121,18 @@ def calculate_keyword_score(query_keywords: List[str], doc_keywords: List[str]) 
         # Check for exact matches
         if query_term in doc_terms:
             matches += 1
+            logger.info(f"Exact match found + 1: {query_term}")
             continue
             
         # Check for partial matches
         for doc_term in doc_terms:
             if query_term in doc_term or doc_term in query_term:
                 partial_matches += 0.5  # Give partial matches half weight
+                logger.info(f"Partial match found + 0.5: {query_term}, {doc_term}")
                 break
     
     total_score = (matches + partial_matches) / len(query_terms) if query_terms else 0
+    logger.info(f"Total score: {total_score}, matches: {matches}, partial matches: {partial_matches}")
     return total_score, matches + partial_matches
 
 def hybrid_search(
@@ -144,12 +151,17 @@ def hybrid_search(
     Returns:
         List of search results with combined scores
     """
+
+    logger.info(f"Starting hybrid search with query: {query}, limit: {limit}, keyword_boost: {keyword_boost}")
+
     try:
         # Generate embedding for the query
         query_vector = embeddings.embed_query(query)
         
         # Split query into keywords
         keywords = [k.lower().strip() for k in query.split()]
+
+        logger.info(f"Split query into keywords: {keywords}")
         
         # Perform vector search with payload filter for keywords
         search_results = qdrant_client.search(
@@ -163,17 +175,21 @@ def hybrid_search(
             with_payload=True,
             with_vectors=False
         )
+        logger.info(f"Vector search results: {search_results}")
         
         # Rerank results using hybrid scoring
         hybrid_results = []
         for result in search_results:
             # Get vector similarity score (normalized to 0-1)
             vector_score = result.score
+            logger.info(f"Vector similarity score: {vector_score}")
             
             # Calculate keyword match score
             if 'keywords' in result.payload:
                 doc_keywords = result.payload['keywords']
+                logger.info(f"Document keywords: {doc_keywords}")
                 keyword_score, match_count = calculate_keyword_score(keywords, doc_keywords)
+                logger.info(f"Keyword match score: {keyword_score}, match count: {match_count}")
             else:
                 keyword_score = 0
                 match_count = 0
@@ -183,6 +199,8 @@ def hybrid_search(
                 (1 - keyword_boost) * vector_score +
                 keyword_boost * keyword_score
             )
+            logger.info(f"calculation: {(1 - keyword_boost) * vector_score + keyword_boost * keyword_score}")
+            logger.info(f"Combined score: {combined_score}")
             
             hybrid_results.append({
                 'vendor_id': result.payload.get('vendor_id'),
@@ -218,12 +236,15 @@ def extract_emails_from_url(url: str) -> List[str]:
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
         response = requests.get(url, headers=headers, timeout=10)
+        logger.info(f"Response status code: {response.status_code}")
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
             
             # Extract text from the page
             text = soup.get_text()
+            logger.info(f"Extracted text: {text}")
             emails = extract_emails_from_text(text)
+            logger.info(f"Extracted emails: {emails}")
             
             # Look for mailto links
             for link in soup.find_all('a'):
@@ -248,16 +269,18 @@ def structure_vendor_description(snippet: str, company_name: str) -> str:
         ("user", """Company: {company_name}
         Raw Information: {snippet}
         
-        Please provide a structured description focusing on what this vendor sells or supplies.""")
+        Please provide a structured description strictly focusing on only what this vendor sells or supplies and not any other information.""")
     ])
 
     formatted_prompt = prompt.format_messages(
         company_name=company_name,
         snippet=snippet
     )
+    logger.info(f"Formatted prompt: {formatted_prompt}")
 
     try:
         response = llm.predict_messages(formatted_prompt)
+        logger.info(f"Response: {response.content}")
         return response.content
     except Exception as e:
         logger.error(f"Error in structuring description: {str(e)}")
@@ -290,10 +313,9 @@ def search_with_serpapi(query: str, location: Optional[str] = None, num_results:
             response = requests.get("https://serpapi.com/search", params=params)
             logger.debug(f"SerpAPI response status: {response.status_code}")
 
-            if page == 0:  # Only save first page for debugging
-                with open('formatted_output.json', 'w') as f:
-                    f.truncate(0)
-                    json.dump(response.json(), f, indent=2)
+            with open('formatted_output.json', 'w') as f:
+                f.truncate(0)
+                json.dump(response.json(), f, indent=2)
             
             if response.status_code != 200:
                 logger.error(f"SerpAPI request failed with status code {response.status_code}")
@@ -465,7 +487,8 @@ if search_query:
             st.write(f"**Description:** {result['company_description']}")
             st.write(f"**Keywords:** {', '.join(result['keywords'])}")
             st.write(f"**Match Score:** {result['combined_score']:.2f}")
-            
+            st.write(f"**Vector Score:** {result['vector_score']:.2f}")
+            st.write(f"**Keyword Score:** {result['keyword_score']:.2f}")            
             if result['email']:
                 st.write(f"**Email:** {result['email']}")
                 if st.button(f"Send Email to {result['email']}", key=f"email_btn_{i}"):
