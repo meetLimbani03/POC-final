@@ -670,7 +670,7 @@ if search_query:
     
     # Display primary results if any
     if primary_results:
-        st.write("### Primary Results")
+        st.write("### Primary Results From DB")
         for i, result in enumerate(primary_results, 1):
             st.write(f"### Result {i}")
             st.write(f"**Company:** {result['company_name']}")
