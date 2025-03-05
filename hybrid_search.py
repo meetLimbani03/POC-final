@@ -50,7 +50,7 @@ qdrant_client = QdrantClient(
 )
 
 # Initialize the LLM
-llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
+llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0, openai_api_key=st.secrets["openai"]["OPENAI_API_KEY"])
 
 # Collection name for vendors
 COLLECTION_NAME = "sample_data_cosine"
