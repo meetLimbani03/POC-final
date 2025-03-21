@@ -20,6 +20,9 @@ from langchain.prompts import ChatPromptTemplate
 from langchain_core.messages import SystemMessage, HumanMessage
 
 
+load_dotenv()
+
+
 # Configure logging to write to a file and avoid recursive logging
 logging.basicConfig(
     level=logging.DEBUG,
@@ -41,25 +44,25 @@ load_dotenv()
 # Initialize OpenAI embeddings
 embeddings = OpenAIEmbeddings(
     model="text-embedding-3-small",
-    openai_api_key=st.secrets["openai"]["OPENAI_API_KEY"]
+    openai_api_key=os.getenv("OPENAI_API_KEY")
 )
 
 # Initialize Qdrant client
 qdrant_client = QdrantClient(
-    url=st.secrets["qdrant"]["QDRANT_URL"],
-    api_key=st.secrets["qdrant"]["QDRANT_API_KEY"]
+    url=os.getenv("QDRANT_URL"),
+    api_key=os.getenv("QDRANT_API_KEY")
 
 )
 
 # Initialize the LLM
-llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0, openai_api_key=st.secrets["openai"]["OPENAI_API_KEY"])
+llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0, openai_api_key=os.getenv("OPENAI_API_KEY"))
 
 # Collection name for vendors
-COLLECTION_NAME = "sample_data_cosine"
+COLLECTION_NAME = "vendors"
 
 # Email configuration
-EMAIL_ADDRESS = st.secrets["email"]["EMAIL_USER"]
-EMAIL_PASSWORD = st.secrets["email"]["EMAIL_PASS"]
+EMAIL_ADDRESS = os.getenv("EMAIL_USER")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASS")
 
 # Jinja2 environment setup
 template_loader = FileSystemLoader('.')
@@ -170,8 +173,10 @@ def hybrid_search(
         # Rerank results using hybrid scoring
         hybrid_results = []
         for result in search_results:
+            print("result", result)
             # Get vector similarity score (normalized to 0-1)
             vector_score = result.score
+            print("vector_score", vector_score)
             
             # Calculate keyword match score
             if 'keywords' in result.payload:
@@ -183,9 +188,9 @@ def hybrid_search(
             
             # Combined score with weighted average
             combined_score = (
-                (1 - keyword_boost) * vector_score +
-                keyword_boost * keyword_score
+                ((1 - keyword_boost) * vector_score) + (keyword_boost * keyword_score)
             )
+            print("combined_score", combined_score)
             
             hybrid_results.append({
                 'vendor_id': result.payload.get('vendor_id'),
@@ -341,7 +346,7 @@ def analyze_query(query: str) -> Dict[str, Union[str, int]]:
         """)
         
         user_message = HumanMessage(content=f"Query: {query}")
-        
+        print("user_message", user_message)
         # Get the response from the LLM directly without using ChatPromptTemplate
         response = llm.predict_messages([system_message, user_message])
         
@@ -394,7 +399,7 @@ def search_with_serpapi(query: str, location: Optional[str] = None, num_results:
             params = {
                 "engine": "google",
                 "q": f'site:.com ("{search_query}" vendors OR suppliers OR sellers) ("contact us" OR email) (inurl:contact OR intitle:"Contact Us")',
-                "api_key": st.secrets["serpapi"]["SERPAPI_API_KEY"],
+                "api_key": os.getenv("SERPAPI_API_KEY"),
                 "num": results_per_page,
                 "gl": "us",  # Country to use for the search
                 "hl": "en",   # Language
@@ -580,13 +585,14 @@ if search_query:
                         progress_placeholder.progress(progress)
                         status_placeholder.text(f"Searching page {current_page+1}... Found {vendors_with_email}/{num_results} vendors with emails")
                 
+                # web_results = []
                 web_results = search_with_serpapi(
                     query=product_keyword,
                     location=location,
                     num_results=num_results,
                     progress_callback=progress_callback
                 )
-                
+                #
                 # Log the search parameters for debugging
                 logger.debug(f"Web search completed with product_keyword='{product_keyword}', num_results={num_results}")
                 

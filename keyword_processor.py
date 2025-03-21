@@ -5,6 +5,9 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, END
 import json
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Define the state type
 class State(TypedDict):
