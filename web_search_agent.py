@@ -27,8 +27,8 @@ logging.basicConfig(
 load_dotenv()
 
 # Initialize OpenAI API key
-OPENAI_API_KEY = st.secrets["openai"]["OPENAI_API_KEY"]
-TAVILY_API_KEY = st.secrets["tavily"]["TAVILY_API_KEY"]
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 # Set the Tavily API key as an environment variable
 os.environ["TAVILY_API_KEY"] = TAVILY_API_KEY
 
@@ -43,7 +43,7 @@ class WebSearchAgent:
             temperature=0,
             openai_api_key=OPENAI_API_KEY
         )
-        print("Initialized language model", st.secrets["tavily"]["TAVILY_API_KEY"])
+        print("Initialized language model", os.getenv("TAVILY_API_KEY"))
         # Initialize search tool
         self.search_tool = TavilySearchResults(
             tavily_api_key=TAVILY_API_KEY,
