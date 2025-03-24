@@ -396,7 +396,7 @@ def search_with_serpapi(query: str, location: Optional[str] = None, num_results:
                 "q": f'site:.com ("{search_query}" vendors OR suppliers OR sellers) ("contact us" OR email) (inurl:contact OR intitle:"Contact Us")',
                 "api_key": st.secrets["serpapi"]["SERPAPI_API_KEY"],
                 "num": results_per_page,
-                "gl": "us",  # Country to use for the search
+                "gl": "sg",  # Country to use for the search(singapore)
                 "hl": "en",   # Language
                 "start": page * results_per_page  # Pagination
             }
@@ -498,6 +498,18 @@ def search_with_serpapi(query: str, location: Optional[str] = None, num_results:
 # Streamlit UI
 st.set_page_config(page_title="Vendor Search", layout="wide")
 
+# Initialize session state for storing search results
+if 'web_results' not in st.session_state:
+    st.session_state.web_results = None
+if 'primary_results' not in st.session_state:
+    st.session_state.primary_results = None
+if 'secondary_results' not in st.session_state:
+    st.session_state.secondary_results = None
+if 'product_keyword' not in st.session_state:
+    st.session_state.product_keyword = ""
+if 'search_performed' not in st.session_state:
+    st.session_state.search_performed = False
+
 # Display Heineken logo
 col1, col2 = st.columns([1, 11])
 with col1:
@@ -546,6 +558,9 @@ if search_query:
     product_keyword = query_analysis['product']
     num_results = query_analysis['num_results']
     
+    # Store in session state
+    st.session_state.product_keyword = product_keyword
+    
     # Add logging to see what was extracted
     logger.info(f"Extracted product: '{product_keyword}' and num_results: {num_results} from query: '{search_query}'")
     
@@ -553,16 +568,13 @@ if search_query:
     results = hybrid_search(product_keyword, limit=num_results, keyword_boost=keyword_weight)
     
     # Split results based on combined score
-    primary_results = [r for r in results if r['combined_score'] >= 0.36]
-    secondary_results = [r for r in results if r['combined_score'] < 0.36]
-    
+    st.session_state.primary_results = [r for r in results if r['combined_score'] >= 0.36]
+    st.session_state.secondary_results = [r for r in results if r['combined_score'] < 0.36]
+    st.session_state.search_performed = True
     
     # Show web search option if no primary results
-    if not primary_results:
+    if not st.session_state.primary_results:
         st.write("No high-confidence results found in database. Let's search the web...")
-        
-        # Add location input for web search
-        location = st.text_input("Enter location for search (optional):", key="location_input")
         
         if st.button("Perform Web Search", key="web_search_button"):
             # Show spinner while searching
@@ -582,10 +594,13 @@ if search_query:
                 
                 web_results = search_with_serpapi(
                     query=product_keyword,
-                    location=location,
+                    location=None,
                     num_results=num_results,
                     progress_callback=progress_callback
                 )
+                
+                # Store in session state
+                st.session_state.web_results = web_results
                 
                 # Log the search parameters for debugging
                 logger.debug(f"Web search completed with product_keyword='{product_keyword}', num_results={num_results}")
@@ -594,111 +609,111 @@ if search_query:
                 progress_placeholder.empty()
                 status_placeholder.empty()
             
-            # Display web search results
-            if web_results:
-                st.write(f"## Web Search Results")
+    # Display web search results
+    if st.session_state.web_results:
+        st.write(f"## Web Search Results")
+        
+        # Display the number of results found
+        if len(st.session_state.web_results) == num_results:
+            st.success(f"✅ Found all {num_results} vendors with email addresses!")
+        else:
+            st.warning(f"⚠️ Found {len(st.session_state.web_results)} vendors with email addresses out of {num_results} requested")
+        
+        # Create a table for the results
+        table_data = []
+        for i, vendor in enumerate(st.session_state.web_results, 1):
+            # Create a truncated description (first 100 characters)
+            short_desc = vendor['company_description'][:100] + "..." if len(vendor['company_description']) > 100 else vendor['company_description']
+            
+            # Create a direct URL for the website instead of markdown link
+            website_url = vendor['website'] if vendor['website'] else ""
+            
+            # Add row to table data
+            table_data.append({
+                "Company": vendor['company_name'],
+                "Description(100 chars)": short_desc,
+                "Email": vendor['email'],
+                "Website": website_url
+            })
+        
+        # Use dataframe with column configuration for better width control
+        import pandas as pd
+        df = pd.DataFrame(table_data)
+        
+        # Add index column for numbering
+        df.insert(0, "#", range(1, len(df) + 1))
+        
+        # Configure the display to use the full width
+        st.write("### Vendors Found")
+        st.dataframe(
+            df,
+            use_container_width=True,
+            column_config={
+                "#": st.column_config.NumberColumn("#", width="small"),
+                "Company": st.column_config.TextColumn("Company", width="medium"),
+                "Description(100 chars)": st.column_config.TextColumn("Description", width="large"),
+                "Email": st.column_config.TextColumn("Email", width="medium"),
+                "Website": st.column_config.LinkColumn("Website", display_text="Visit Website", width="small"),
+            },
+            hide_index=True
+        )
+        
+        # Add download button for CSV export
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="Download Results as CSV",
+            data=csv,
+            file_name=f"{product_keyword}_vendors.csv",
+            mime="text/csv",
+        )
+        
+        # Show detailed information in expanders
+        st.write("### Detailed Information")
+        for i, vendor in enumerate(st.session_state.web_results, 1):
+            with st.expander(f"{i}. {vendor['company_name']} - Details"):
+                st.write(f"**Description:** {vendor['company_description']}")
                 
-                # Display the number of results found
-                if len(web_results) == num_results:
-                    st.success(f"✅ Found all {num_results} vendors with email addresses!")
+                # Create a proper clickable link
+                if vendor['website']:
+                    st.markdown(f"**Website:** <a href='{vendor['website']}' target='_blank'>{vendor['website']}</a>", unsafe_allow_html=True)
                 else:
-                    st.warning(f"⚠️ Found {len(web_results)} vendors with email addresses out of {num_results} requested")
-                
-                # Create a table for the results
-                table_data = []
-                for i, vendor in enumerate(web_results, 1):
-                    # Create a truncated description (first 100 characters)
-                    short_desc = vendor['company_description'][:100] + "..." if len(vendor['company_description']) > 100 else vendor['company_description']
+                    st.write("**Website:** Not available")
                     
-                    # Create a direct URL for the website instead of markdown link
-                    website_url = vendor['website'] if vendor['website'] else ""
-                    
-                    # Add row to table data
-                    table_data.append({
-                        "Company": vendor['company_name'],
-                        "Description(100 chars)": short_desc,
-                        "Email": vendor['email'],
-                        "Website": website_url
-                    })
+                st.write(f"**Email:** {vendor['email']}")
                 
-                # Use dataframe with column configuration for better width control
-                import pandas as pd
-                df = pd.DataFrame(table_data)
-                
-                # Add index column for numbering
-                df.insert(0, "#", range(1, len(df) + 1))
-                
-                # Configure the display to use the full width
-                st.write("### Vendors Found")
-                st.dataframe(
-                    df,
-                    use_container_width=True,
-                    column_config={
-                        "#": st.column_config.NumberColumn("#", width="small"),
-                        "Company": st.column_config.TextColumn("Company", width="medium"),
-                        "Description(100 chars)": st.column_config.TextColumn("Description", width="large"),
-                        "Email": st.column_config.TextColumn("Email", width="medium"),
-                        "Website": st.column_config.LinkColumn("Website", display_text="Visit Website", width="small"),
-                    },
-                    hide_index=True
-                )
-                
-                # Add download button for CSV export
-                csv = df.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="Download Results as CSV",
-                    data=csv,
-                    file_name=f"{product_keyword}_vendors.csv",
-                    mime="text/csv",
-                )
-                
-                # Show detailed information in expanders
-                st.write("### Detailed Information")
-                for i, vendor in enumerate(web_results, 1):
-                    with st.expander(f"{i}. {vendor['company_name']} - Details"):
-                        st.write(f"**Description:** {vendor['company_description']}")
+                if vendor['email']:
+                    # Add email input field
+                    recipient_email = st.text_input('Enter your email address:', value=EMAIL_ADDRESS, key=f'recipient_email_{i}')
+                    if st.button(f"Send Email", key=f"web_email_btn_{i}") and recipient_email:
+                        # Email template data
+                        email_data = {
+                            "vendor_name": vendor['company_name'],
+                            "product": product_keyword,
+                            "user_name": "Your Name",
+                            "user_company": "Your Company",
+                            "user_phone": "Your Phone",
+                            "user_email": recipient_email
+                        }
                         
-                        # Create a proper clickable link
-                        if vendor['website']:
-                            st.markdown(f"**Website:** <a href='{vendor['website']}' target='_blank'>{vendor['website']}</a>", unsafe_allow_html=True)
-                        else:
-                            st.write("**Website:** Not available")
-                            
-                        st.write(f"**Email:** {vendor['email']}")
+                        # Create email content from template
+                        email_html = create_email_template("email_template.html", email_data)
                         
-                        if vendor['email']:
-                            if st.button(f"Send Email to {vendor['email']}", key=f"web_email_btn_{i}"):
-                                # Email template data
-                                email_data = {
-                                    "vendor_name": vendor['company_name'],
-                                    "product": product_keyword,
-                                    "user_name": "Your Name",
-                                    "user_company": "Your Company",
-                                    "user_phone": "Your Phone",
-                                    "user_email": "Your Email"
-                                }
-                                
-                                # Create email content from template
-                                email_html = create_email_template("email_template.html", email_data)
-                                
-                                # Send the email
-                                send_email(
-                                    recipient_email=vendor['email'],
-                                    subject=f"Inquiry about {product_keyword}",
-                                    html_body=email_html
-                                )
-                        
-                        if len(vendor['all_emails']) > 1:
-                            st.write("**All emails found:**")
-                            for email in vendor['all_emails']:
-                                st.write(f"- {email}")
-            else:
-                st.error("No vendors found in web search. Try a different search query or location.")
+                        # Send the email
+                        send_email(
+                            recipient_email=recipient_email,
+                            subject=f"Inquiry about {product_keyword}",
+                            html_body=email_html
+                        )
+                
+                if len(vendor['all_emails']) > 1:
+                    st.write("**All emails found:**")
+                    for email in vendor['all_emails']:
+                        st.write(f"- {email}")
     
     # Display primary results if any
-    if primary_results:
+    if st.session_state.primary_results:
         st.write("### Primary Results From DB")
-        for i, result in enumerate(primary_results, 1):
+        for i, result in enumerate(st.session_state.primary_results, 1):
             st.write(f"### Result {i}")
             st.write(f"**Company:** {result['company_name']}")
             st.write(f"**Description:** {result['company_description']}")
@@ -708,7 +723,9 @@ if search_query:
             st.write(f"**Keyword Score:** {result['keyword_score']:.2f}")            
             if result['email']:
                 st.write(f"**Email:** {result['email']}")
-                if st.button(f"Send Email to {result['email']}", key=f"email_btn_{i}"):
+                # Add email input field
+                recipient_email = st.text_input('Enter your email address:', value=EMAIL_ADDRESS, key=f'recipient_email_{i}')
+                if st.button(f"Send Email", key=f"email_btn_{i}") and recipient_email:
                     # Email template data
                     email_data = {
                         "vendor_name": result['company_name'],
@@ -716,7 +733,7 @@ if search_query:
                         "user_name": "Your Name",
                         "user_company": "Your Company",
                         "user_phone": "Your Phone",
-                        "user_email": "Your Email"
+                        "user_email": recipient_email
                     }
                     
                     # Create email content from template
@@ -724,15 +741,15 @@ if search_query:
                     
                     # Send the email
                     send_email(
-                        recipient_email=result['email'],
+                        recipient_email=recipient_email,
                         subject=f"Inquiry about {product_keyword}",
                         html_body=email_html
                     )
     
     # Display secondary results if any
-    if secondary_results:
+    if st.session_state.secondary_results:
         with st.expander("Show More Results (Combined Score < 0.36)"):
-            for i, result in enumerate(secondary_results, len(primary_results) + 1):
+            for i, result in enumerate(st.session_state.secondary_results, len(st.session_state.primary_results) + 1):
                 st.write(f"### Result {i}")
                 st.write(f"**Company:** {result['company_name']}")
                 st.write(f"**Description:** {result['company_description']}")
@@ -741,7 +758,8 @@ if search_query:
                 
                 if result['email']:
                     st.write(f"**Email:** {result['email']}")
-                    if st.button(f"Send Email to {result['email']}", key=f"email_btn_{i}"):
+                    # Add email input field
+                    if st.button(f"Send Email", key=f"email_btn_{i}") and recipient_email:
                         # Email template data
                         email_data = {
                             "vendor_name": result['company_name'],
@@ -749,7 +767,7 @@ if search_query:
                             "user_name": "Your Name",
                             "user_company": "Your Company",
                             "user_phone": "Your Phone",
-                            "user_email": "Your Email"
+                            "user_email": recipient_email
                         }
                         
                         # Create email content from template
@@ -757,10 +775,11 @@ if search_query:
                         
                         # Send the email
                         send_email(
-                            recipient_email=result['email'],
+                            recipient_email=recipient_email,
                             subject=f"Inquiry about {product_keyword}",
                             html_body=email_html
                         )
+                        st.success('Email sent successfully!')
     
-    if not results:
+    if not st.session_state.search_performed:
         st.write("No results found in database. Searching the web...")
