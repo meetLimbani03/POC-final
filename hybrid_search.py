@@ -373,7 +373,6 @@ def analyze_query(query: str) -> Dict[str, Union[str, int]]:
 
 def search_with_serpapi(query: str, location: Optional[str] = None, num_results: int = 5, progress_callback=None) -> List[Dict]:
     """Search for vendors using SerpAPI and extract relevant information."""
-    logger.info(f"Starting search_with_serpapi with query: {query}, location: {location}, num_results: {num_results}")
     try:
         # Use the provided query directly - this should be the product keyword extracted by analyze_query
         search_query = query
@@ -398,8 +397,10 @@ def search_with_serpapi(query: str, location: Optional[str] = None, num_results:
                 "num": results_per_page,
                 "gl": "sg",  # Country to use for the search(singapore)
                 "hl": "en",   # Language
-                "start": page * results_per_page  # Pagination
+                "start": page * results_per_page,  # Pagination
+                "location": "Singapore",  # Explicitly set location to Singapore
             }
+            logger.debug(f"SerpAPI request parameters: {params}")
             
             # Make the API request
             response = requests.get("https://serpapi.com/search", params=params)
