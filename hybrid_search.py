@@ -684,7 +684,7 @@ if search_query:
                 
                 if vendor['email']:
                     # Add email input field
-                    recipient_email = st.text_input('Enter your email address:', value=EMAIL_ADDRESS, key=f'recipient_email_{i}')
+                    recipient_email = st.text_input('Enter your email address:', key=f'recipient_email_{i}')
                     if st.button(f"Send Email", key=f"web_email_btn_{i}") and recipient_email:
                         # Email template data
                         email_data = {
@@ -725,7 +725,7 @@ if search_query:
             if result['email']:
                 st.write(f"**Email:** {result['email']}")
                 # Add email input field
-                recipient_email = st.text_input('Enter your email address:', value=EMAIL_ADDRESS, key=f'recipient_email_{i}')
+                recipient_email = st.text_input('Enter your email address:', key=f'recipient_email_{i}')
                 if st.button(f"Send Email", key=f"email_btn_{i}") and recipient_email:
                     # Email template data
                     email_data = {
